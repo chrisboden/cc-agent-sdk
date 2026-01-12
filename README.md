@@ -103,6 +103,10 @@ See [SKILL.md](SKILL.md) for the full navigation guide. Key references:
 | MCP | `references/mcp.md` |
 | Hosting | `references/hosting.md` |
 
+## Using Claude Agent SDK via OpenRouter
+
+The skill also includes support for using the Agent SDK with other non-Anthropic models, via the OpenRouter API.
+
 ## License
 
 Reference documentation is mirrored from Anthropic's official Claude Agent SDK docs.

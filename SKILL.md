@@ -79,3 +79,9 @@ For a complete runnable example, read `references/quickstart.md`.
 - A ready-to-copy **permission policy** template (hooks + settings rules) for safe production deployments.
 - A “recommended tool sets by task” matrix (debugging vs refactor vs docs vs CI vs security review).
 - Local mirrors for non-Agent-SDK docs that are still essential in practice (Claude Code settings/permission rules, tool reference, sandboxing).
+
+## Using Claude Agent SDK via OpenRouter
+
+If you would like to use the Agent SDK with other non-Anthropic models, you can do so by pointing the SDK at the OpenRouter API. See [OpenRouter support](references/openrouter-support.md) for more details.
+
+For full OpenRouter documentation, see [OpenRouter documentation](https://openrouter.ai/docs/llms.txt).
