@@ -10,9 +10,7 @@ System prompts define Claude's behavior, capabilities, and response style. The C
 
 A system prompt is the initial instruction set that shapes how Claude behaves throughout a conversation.
 
-<Note>
-**Default behavior:** The Agent SDK uses an **empty system prompt** by default for maximum flexibility. To use Claude Code's system prompt (tool instructions, code guidelines, etc.), specify `systemPrompt: { preset: "claude_code" }` in TypeScript or `system_prompt="claude_code"` in Python.
-</Note>
+> **Note:** **Default behavior:** The Agent SDK uses a **minimal system prompt** by default. It contains only essential tool instructions but omits Claude Code's coding guidelines, response style, and project context. To include the full Claude Code system prompt, specify `systemPrompt: { preset: "claude_code" }` in TypeScript or `system_prompt={"type": "preset", "preset": "claude_code"}` in Python.
 
 Claude Code's system prompt includes:
 
@@ -77,10 +75,8 @@ CLAUDE.md files use plain markdown and can contain:
 
 #### Using CLAUDE.md with the SDK
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // IMPORTANT: You must specify settingSources to load CLAUDE.md
 // The claude_code preset alone does NOT load CLAUDE.md files
@@ -124,7 +120,6 @@ async for message in query(
 # Now Claude has access to your project guidelines from CLAUDE.md
 ```
 
-</CodeGroup>
 
 #### When to use CLAUDE.md
 
@@ -149,12 +144,9 @@ Output styles are saved configurations that modify Claude's system prompt. They'
 
 #### Creating an output style
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
-import { homedir } from "os";
+
 
 async function createOutputStyle(
   name: string,
@@ -230,7 +222,6 @@ For every code submission:
 )
 ```
 
-</CodeGroup>
 
 #### Using output styles
 
@@ -246,10 +237,8 @@ Once created, activate output styles via:
 
 You can use the Claude Code preset with an `append` property to add your custom instructions while preserving all built-in functionality.
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 const messages = [];
 
@@ -291,16 +280,13 @@ async for message in query(
         print(message.message.content)
 ```
 
-</CodeGroup>
 
 ### Method 4: Custom system prompts
 
 You can provide a custom string as `systemPrompt` to replace the default entirely with your own instructions.
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 const customPrompt = `You are a Python coding specialist.
 Follow these guidelines:
@@ -349,7 +335,6 @@ async for message in query(
         print(message.message.content)
 ```
 
-</CodeGroup>
 
 ## Comparison of all four approaches
 
@@ -428,10 +413,8 @@ You can combine these methods for maximum flexibility:
 
 ### Example: Output style with session-specific additions
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Assuming "Code Reviewer" output style is active (via /output-style)
 // Add session-specific focus areas
@@ -481,7 +464,6 @@ async for message in query(
     messages.append(message)
 ```
 
-</CodeGroup>
 
 ## See also
 

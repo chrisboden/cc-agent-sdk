@@ -21,10 +21,8 @@ For complete information on plugin structure and how to create plugins, see [Plu
 
 Load plugins by providing their local file system paths in your options configuration. The SDK supports loading multiple plugins from different locations.
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "Hello",
@@ -59,7 +57,6 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ### Path specifications
 
@@ -67,18 +64,14 @@ Plugin paths can be:
 - **Relative paths**: Resolved relative to your current working directory (e.g., `"./plugins/my-plugin"`)
 - **Absolute paths**: Full file system paths (e.g., `"/home/user/plugins/my-plugin"`)
 
-<Note>
-The path should point to the plugin's root directory (the directory containing `.claude-plugin/plugin.json`).
-</Note>
+> **Note:** The path should point to the plugin's root directory (the directory containing `.claude-plugin/plugin.json`).
 
 ## Verifying plugin installation
 
 When plugins load successfully, they appear in the system initialization message. You can verify that your plugins are available:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "Hello",
@@ -119,16 +112,13 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ## Using plugin commands
 
 Commands from plugins are automatically namespaced with the plugin name to avoid conflicts. The format is `plugin-name:command-name`.
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Load a plugin with a custom /greet command
 for await (const message of query({
@@ -163,21 +153,16 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
-<Note>
-If you installed a plugin via the CLI (e.g., `/plugin install my-plugin@marketplace`), you can still use it in the SDK by providing its installation path. Check `~/.claude/plugins/` for CLI-installed plugins.
-</Note>
+> **Note:** If you installed a plugin via the CLI (e.g., `/plugin install my-plugin@marketplace`), you can still use it in the SDK by providing its installation path. Check `~/.claude/plugins/` for CLI-installed plugins.
 
 ## Complete example
 
 Here's a full example demonstrating plugin loading and usage:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import * as path from "path";
+
 
 async function runWithPlugin() {
   const pluginPath = path.join(__dirname, "plugins", "my-plugin");
@@ -252,7 +237,6 @@ if __name__ == "__main__":
     anyio.run(run_with_plugin)
 ```
 
-</CodeGroup>
 
 ## Plugin structure reference
 

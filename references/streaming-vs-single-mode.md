@@ -59,7 +59,7 @@ sequenceDiagram
 
 ### Benefits
 
-<CardGroup cols={2}>
+
   <Card title="Image Uploads" icon="image">
     Attach images directly to messages for visual analysis and understanding
   </Card>
@@ -78,15 +78,13 @@ sequenceDiagram
   <Card title="Context Persistence" icon="database">
     Maintain conversation context across multiple turns naturally
   </Card>
-</CardGroup>
+
 
 ### Implementation Example
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
-import { readFileSync } from "fs";
+
 
 async function* generateMessages() {
   // First message
@@ -202,7 +200,6 @@ async def streaming_analysis():
 asyncio.run(streaming_analysis())
 ```
 
-</CodeGroup>
 
 ## Single Message Input
 
@@ -218,21 +215,17 @@ Use single message input when:
 
 ### Limitations
 
-<Warning>
-Single message input mode does **not** support:
+> **Warning:** Single message input mode does **not** support:
 - Direct image attachments in messages
 - Dynamic message queueing
 - Real-time interruption
 - Hook integration
 - Natural multi-turn conversations
-</Warning>
 
 ### Implementation Example
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Simple one-shot query
 for await (const message of query({
@@ -290,5 +283,3 @@ async def single_message_example():
 
 asyncio.run(single_message_example())
 ```
-
-</CodeGroup>

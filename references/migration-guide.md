@@ -16,9 +16,7 @@ The Claude Code SDK has been renamed to the **Claude Agent SDK** and its documen
 | **Python Package**       | `claude-code-sdk`           | `claude-agent-sdk`               |
 | **Documentation Location** | Claude Code docs | API Guide → Agent SDK section |
 
-<Note>
-**Documentation Changes:** The Agent SDK documentation has moved from the Claude Code docs to the API Guide under a dedicated [Agent SDK](/docs/en/agent-sdk/overview) section. The Claude Code docs now focus on the CLI tool and automation features.
-</Note>
+> **Note:** **Documentation Changes:** The Agent SDK documentation has moved from the Claude Code docs to the API Guide under a dedicated [Agent SDK](/docs/en/agent-sdk/overview) section. The Claude Code docs now focus on the CLI tool and automation features.
 
 ## Migration Steps
 
@@ -42,7 +40,6 @@ Change all imports from `@anthropic-ai/claude-code` to `@anthropic-ai/claude-age
 
 ```typescript
 // Before
-import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-code";
 
 // After
 import {
@@ -126,9 +123,7 @@ Make any code changes needed to complete the migration.
 
 ## Breaking changes
 
-<Warning>
-To improve isolation and explicit configuration, Claude Agent SDK v0.1.0 introduces breaking changes for users migrating from Claude Code SDK. Review this section carefully before migrating.
-</Warning>
+> **Warning:** To improve isolation and explicit configuration, Claude Agent SDK v0.1.0 introduces breaking changes for users migrating from Claude Code SDK. Review this section carefully before migrating.
 
 ### Python: ClaudeCodeOptions renamed to ClaudeAgentOptions
 
@@ -162,13 +157,12 @@ options = ClaudeAgentOptions(
 
 **Migration:**
 
-<CodeGroup>
 
 ```typescript TypeScript
 // BEFORE (v0.0.x) - Used Claude Code's system prompt by default
 const result = query({ prompt: "Hello" });
 
-// AFTER (v0.1.0) - Uses empty system prompt by default
+// AFTER (v0.1.0) - Uses minimal system prompt by default
 // To get the old behavior, explicitly request Claude Code's preset:
 const result = query({
   prompt: "Hello",
@@ -191,7 +185,7 @@ const result = query({
 async for message in query(prompt="Hello"):
     print(message)
 
-# AFTER (v0.1.0) - Uses empty system prompt by default
+# AFTER (v0.1.0) - Uses minimal system prompt by default
 # To get the old behavior, explicitly request Claude Code's preset:
 from claude_agent_sdk import query, ClaudeAgentOptions
 
@@ -213,7 +207,6 @@ async for message in query(
     print(message)
 ```
 
-</CodeGroup>
 
 **Why this changed:** Provides better control and isolation for SDK applications. You can now build agents with custom behavior without inheriting Claude Code's CLI-focused instructions.
 
@@ -223,7 +216,6 @@ async for message in query(
 
 **Migration:**
 
-<CodeGroup>
 
 ```typescript TypeScript
 // BEFORE (v0.0.x) - Loaded all settings automatically
@@ -286,7 +278,6 @@ async for message in query(
     print(message)
 ```
 
-</CodeGroup>
 
 **Why this changed:** Ensures SDK applications have predictable behavior independent of local filesystem configurations. This is especially important for:
 - **CI/CD environments** - Consistent behavior without local customizations
@@ -294,9 +285,7 @@ async for message in query(
 - **Testing** - Isolated test environments
 - **Multi-tenant systems** - Prevent settings leakage between users
 
-<Note>
-**Backward compatibility:** If your application relied on filesystem settings (custom slash commands, CLAUDE.md instructions, etc.), add `settingSources: ['user', 'project', 'local']` to your options.
-</Note>
+> **Note:** **Backward compatibility:** If your application relied on filesystem settings (custom slash commands, CLAUDE.md instructions, etc.), add `settingSources: ['user', 'project', 'local']` to your options.
 
 ## Why the Rename?
 

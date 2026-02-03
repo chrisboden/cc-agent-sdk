@@ -297,8 +297,7 @@ When the agent needs to analyze code but not modify it, mount the directory read
 docker run -v /path/to/code:/workspace:ro agent-image
 ```
 
-<Warning>
-Even read-only access to a code directory can expose credentials. Common files to exclude or sanitize before mounting:
+> **Warning:** Even read-only access to a code directory can expose credentials. Common files to exclude or sanitize before mounting:
 
 | File | Risk |
 |------|------|
@@ -314,7 +313,6 @@ Even read-only access to a code directory can expose credentials. Common files t
 | `*.pem`, `*.key` | Private keys |
 
 Consider copying only the source files needed, or using `.dockerignore`-style filtering.
-</Warning>
 
 ### Writable locations
 

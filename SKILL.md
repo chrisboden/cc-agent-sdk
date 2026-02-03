@@ -17,7 +17,7 @@ This Skill is designed as an **on-ramp + index**. The full official docs are mir
   - TypeScript: `npm install @anthropic-ai/claude-agent-sdk`
 - Auth:
   - Prefer Claude Code auth (recommended by the docs), otherwise set `ANTHROPIC_API_KEY`.
-- Settings for Claude Code: see `references/settings.md`
+- Settings for Claude Code: see the `cc-know-thyself` skill (core CLI docs; especially `settings.md`, `permissions.md`, `sandboxing.md`)
 
 ## Recommended defaults for coding agents
 
@@ -54,9 +54,13 @@ For a complete runnable example, read `references/quickstart.md`.
 - `references/python.md` — full Python API surface (`ClaudeAgentOptions`, `query`, sessions, MCP, output formats)
 - `references/typescript.md` — full TypeScript API surface (`Options`, `Query`, hooks, tools, etc.)
 
+## Related Skills
+
+- Core Claude Code CLI docs live in the `cc-know-thyself` skill (settings, permissions, sandboxing, CLI reference, hooks, and troubleshooting)
+
 ## Key topics (pick what you need)
 
-- Permissions and safe tool use: `references/permissions.md` and `references/settings.md`
+- Permissions and safe tool use: `references/permissions.md` (Claude Code permission rules are in `cc-know-thyself`)
 - Claude Code hooks (how to author hooks): `references/hooks.md`
 - Streaming vs single-message mode: `references/streaming-vs-single-mode.md`
 - Session resume/fork/continue: `references/sessions.md`
@@ -78,7 +82,7 @@ For a complete runnable example, read `references/quickstart.md`.
 - Repo-level “golden” examples (beyond the quickstart) for common agent apps (PR reviewer, codebase migrator, CI fixer).
 - A ready-to-copy **permission policy** template (hooks + settings rules) for safe production deployments.
 - A “recommended tool sets by task” matrix (debugging vs refactor vs docs vs CI vs security review).
-- Local mirrors for non-Agent-SDK docs that are still essential in practice (Claude Code settings/permission rules, tool reference, sandboxing).
+- Local mirrors for non-Agent-SDK docs that are still essential in practice (use `cc-know-thyself` for Claude Code settings, permission rules, tool reference, sandboxing).
 
 ## Using Claude Agent SDK via OpenRouter
 

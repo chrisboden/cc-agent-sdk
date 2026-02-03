@@ -26,10 +26,8 @@ The SDK automatically creates todos for:
 
 ### Monitoring Todo Changes
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "Optimize my React app performance and track progress with todos",
@@ -73,14 +71,11 @@ async for message in query(
                     print(f"{i + 1}. {status} {todo['content']}")
 ```
 
-</CodeGroup>
 
 ### Real-time Progress Display
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 class TodoTracker {
   private todos: any[] = [];
@@ -166,7 +161,6 @@ tracker = TodoTracker()
 await tracker.track_query("Build a complete authentication system with todos")
 ```
 
-</CodeGroup>
 
 ## Related Documentation
 

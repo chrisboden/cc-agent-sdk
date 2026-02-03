@@ -10,11 +10,9 @@ Custom tools allow you to extend Claude Code's capabilities with your own functi
 
 Use the `createSdkMcpServer` and `tool` helper functions to define type-safe custom tools:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query, tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
-import { z } from "zod";
+
 
 // Create an SDK MCP server with custom tools
 const customServer = createSdkMcpServer({
@@ -74,15 +72,12 @@ custom_server = create_sdk_mcp_server(
 )
 ```
 
-</CodeGroup>
 
 ## Using Custom Tools
 
 Pass the custom server to the `query` function via the `mcpServers` option as a dictionary/object.
 
-<Note>
-**Important:** Custom MCP tools require streaming input mode. You must use an async generator/iterable for the `prompt` parameter - a simple string will not work with MCP servers.
-</Note>
+> **Note:** **Important:** Custom MCP tools require streaming input mode. You must use an async generator/iterable for the `prompt` parameter - a simple string will not work with MCP servers.
 
 ### Tool Name Format
 
@@ -94,10 +89,8 @@ When MCP tools are exposed to Claude, their names follow a specific format:
 
 You can control which tools Claude can use via the `allowedTools` option:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Use the custom tools in your query with streaming input
 async function* generateMessages() {
@@ -154,13 +147,11 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ### Multiple Tools Example
 
 When your MCP server has multiple tools, you can selectively allow them:
 
-<CodeGroup>
 
 ```typescript TypeScript
 const multiToolServer = createSdkMcpServer({
@@ -253,16 +244,13 @@ async for message in query(
         print(message.result)
 ```
 
-</CodeGroup>
 
 ## Type Safety with Python
 
 The `@tool` decorator supports various schema definition approaches for type safety:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { z } from "zod";
 
 tool(
   "process_data",
@@ -348,13 +336,11 @@ async def advanced_process(args: dict[str, Any]) -> dict[str, Any]:
     }
 ```
 
-</CodeGroup>
 
 ## Error Handling
 
 Handle errors gracefully to provide meaningful feedback:
 
-<CodeGroup>
 
 ```typescript TypeScript
 tool(
@@ -433,13 +419,11 @@ async def fetch_data(args: dict[str, Any]) -> dict[str, Any]:
         }
 ```
 
-</CodeGroup>
 
 ## Example Tools
 
 ### Database Query Tool
 
-<CodeGroup>
 
 ```typescript TypeScript
 const databaseServer = createSdkMcpServer({
@@ -492,11 +476,9 @@ database_server = create_sdk_mcp_server(
 )
 ```
 
-</CodeGroup>
 
 ### API Gateway Tool
 
-<CodeGroup>
 
 ```typescript TypeScript
 const apiGatewayServer = createSdkMcpServer({
@@ -605,11 +587,9 @@ api_gateway_server = create_sdk_mcp_server(
 )
 ```
 
-</CodeGroup>
 
 ### Calculator Tool
 
-<CodeGroup>
 
 ```typescript TypeScript
 const calculatorServer = createSdkMcpServer({
@@ -743,7 +723,6 @@ calculator_server = create_sdk_mcp_server(
 )
 ```
 
-</CodeGroup>
 
 ## Related Documentation
 

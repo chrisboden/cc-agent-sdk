@@ -1,0 +1,118 @@
+{
+  "files": {
+    "overview.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/overview",
+      "hash": "a20da5db8e800e3bbc9ceb8574d1be95a1c1a735c6b3448f4ab1da511249624a",
+      "last_updated": "2026-02-03T20:08:26.312933"
+    },
+    "quickstart.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/quickstart",
+      "hash": "3656f888d0625e7ea1f17d494dc46e754a72bf7d3a5700dbe347f08ef41987fb",
+      "last_updated": "2026-02-03T20:08:26.695008"
+    },
+    "python.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/python",
+      "hash": "245d7355750eefa516d646e120ebf75ad3eb6239a73f00f66e5883791d86bcf4",
+      "last_updated": "2026-02-03T20:08:27.221332"
+    },
+    "typescript.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/typescript",
+      "hash": "fcb59fb80da91903ed0e37f23de4dd58b0746f8a9c9f3470c841628af325f61f",
+      "last_updated": "2026-02-03T20:08:27.568187"
+    },
+    "permissions.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/permissions",
+      "hash": "a088b611652cb71f33e46d16bc8fd3cc64ff6613d19f54e8f97f8d7fb7eec47a",
+      "last_updated": "2026-02-03T20:08:27.866080"
+    },
+    "sessions.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/sessions",
+      "hash": "8582b3b2c69153619d1d63c153f7db94b70113a6d261eb67f5502dd060f1eb13",
+      "last_updated": "2026-02-03T20:08:28.606685"
+    },
+    "streaming-vs-single-mode.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/streaming-vs-single-mode",
+      "hash": "b346e04289f75f4e27520b079c429adfbd478885c59cdb5c18026dede92d7591",
+      "last_updated": "2026-02-03T20:08:28.915164"
+    },
+    "structured-outputs.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/structured-outputs",
+      "hash": "db1c048a2bf3dd557b0ba4a03b8f8a8ab7d44fb0ca5ec5703fc0588510f01f01",
+      "last_updated": "2026-02-03T20:08:29.275538"
+    },
+    "mcp.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/mcp",
+      "hash": "4e651f543f044da6b9c5b01aa7c31778d4f26b12fd0743429e2a8d4fd5b217d9",
+      "last_updated": "2026-02-03T20:08:29.588129"
+    },
+    "custom-tools.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/custom-tools",
+      "hash": "7ca711518c7bfc0caff99d14a01f1420b3a4495556c9dcf05408f3624b5a59d2",
+      "last_updated": "2026-02-03T20:08:29.989257"
+    },
+    "hooks.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/hooks",
+      "hash": "2af5ade2707a70cdd3cca7fd0e861cb9d49a459756236ff1a4d1b4409a7e74a1",
+      "last_updated": "2026-02-03T20:08:30.340196"
+    },
+    "subagents.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/subagents",
+      "hash": "418d1c848849246cd1b986ebaad9fc0d5374ca0e7d5ce408f29e5953db9624e0",
+      "last_updated": "2026-02-03T20:08:30.664802"
+    },
+    "skills.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/skills",
+      "hash": "494cc1f3e3d15ba8a26715270342ebe7dade274846788e9b79926a0e267db13a",
+      "last_updated": "2026-02-03T20:08:30.970984"
+    },
+    "slash-commands.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/slash-commands",
+      "hash": "e1140075b54d80f1e34337196cb3e76720f6ab7a084c64a3d1c26074d18c40f7",
+      "last_updated": "2026-02-03T20:08:31.430706"
+    },
+    "plugins.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/plugins",
+      "hash": "16e6b80ef7b68f3db8aeb1f6d5248eabeb246114c5850d7840175b69bf17f9ce",
+      "last_updated": "2026-02-03T20:08:31.823215"
+    },
+    "todo-tracking.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/todo-tracking",
+      "hash": "4ee2a0ba2705d571a38b82e09a09800a52ebfa2266b92d51cb92c11ed8da9403",
+      "last_updated": "2026-02-03T20:08:32.083123"
+    },
+    "cost-tracking.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/cost-tracking",
+      "hash": "40b2ef8179f5d7517b6e8578a040f2a5da33013b7992b4d425267e9a6b15fc54",
+      "last_updated": "2026-02-03T20:08:32.414213"
+    },
+    "hosting.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/hosting",
+      "hash": "e94915e46e17e9f9f8cc3fb06b0868513a4caf52e58adce19a551a981998e89d",
+      "last_updated": "2026-02-03T20:08:32.715639"
+    },
+    "secure-deployment.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/secure-deployment",
+      "hash": "df414658ee5f01cb3219135ac8227b1f879a8d9c75fde2522a431dd4e1c18bee",
+      "last_updated": "2026-02-03T20:08:33.025414"
+    },
+    "modifying-system-prompts.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/modifying-system-prompts",
+      "hash": "23de89c5788d7a4aeecd8f5a791f19f0889dc55b154b77a8a490c5e1f71f2771",
+      "last_updated": "2026-02-03T20:08:33.340830"
+    },
+    "migration-guide.md": {
+      "original_url": "https://platform.claude.com/docs/en/agent-sdk/migration-guide",
+      "hash": "e431d64c7d428ac3dc75e94d2e769de64a781ea657c8779af9b431c888b13094",
+      "last_updated": "2026-02-03T20:08:33.722592"
+    }
+  },
+  "fetch_metadata": {
+    "successful": 21,
+    "failed": 1,
+    "failed_pages": [
+      "https://platform.claude.com/docs/en/agent-sdk/settings"
+    ]
+  },
+  "last_updated": "2026-02-03T20:08:33.727553",
+  "description": "Claude Agent SDK documentation manifest for cc-agent-sdk skill."
+}

@@ -10,10 +10,8 @@ Slash commands provide a way to control Claude Code sessions with special comman
 
 The Claude Agent SDK provides information about available slash commands in the system initialization message. Access this information when your session starts:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "Hello Claude",
@@ -42,16 +40,13 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ## Sending Slash Commands
 
 Send slash commands by including them in your prompt string, just like regular text:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Send a slash command
 for await (const message of query({
@@ -80,7 +75,6 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ## Common Slash Commands
 
@@ -88,10 +82,8 @@ asyncio.run(main())
 
 The `/compact` command reduces the size of your conversation history by summarizing older messages while preserving important context:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "/compact",
@@ -124,16 +116,13 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ### `/clear` - Clear Conversation
 
 The `/clear` command starts a fresh conversation by clearing all previous history:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Clear conversation and start fresh
 for await (const message of query({
@@ -164,7 +153,6 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ## Creating Custom Slash Commands
 
@@ -217,10 +205,8 @@ Analyze the codebase for security vulnerabilities including:
 
 Once defined in the filesystem, custom commands are automatically available through the SDK:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Use a custom command
 for await (const message of query({
@@ -271,7 +257,6 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ### Advanced Features
 
@@ -293,10 +278,8 @@ Check the issue description and implement the necessary changes.
 
 Use in SDK:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Pass arguments to custom command
 for await (const message of query({
@@ -327,7 +310,6 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 #### Bash Command Execution
 
@@ -438,10 +420,8 @@ Run tests matching pattern: $ARGUMENTS
 
 Use these commands through the SDK:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Run code review
 for await (const message of query({
@@ -484,7 +464,6 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ## See Also
 

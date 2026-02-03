@@ -6,9 +6,7 @@ Complete API reference for the TypeScript Agent SDK, including all functions, ty
 
 <script src="/components/typescript-sdk-type-links.js" defer />
 
-<Note>
-**Try the new V2 interface (preview):** A simplified interface with `send()` and `receive()` patterns is now available, making multi-turn conversations easier. [Learn more](/docs/en/agent-sdk/typescript-v2-preview)
-</Note>
+> **Note:** **Try the new V2 interface (preview):** A simplified interface with `send()` and `receive()` patterns is now available, making multi-turn conversations easier. [Learn more about the TypeScript V2 preview](/docs/en/agent-sdk/typescript-v2-preview)
 
 ## Installation
 
@@ -103,6 +101,7 @@ Configuration object for the `query()` function.
 | `continue` | `boolean` | `false` | Continue the most recent conversation |
 | `cwd` | `string` | `process.cwd()` | Current working directory |
 | `disallowedTools` | `string[]` | `[]` | List of disallowed tool names |
+| `enableFileCheckpointing` | `boolean` | `false` | Enable file change tracking for rewinding. See [File checkpointing](/docs/en/agent-sdk/file-checkpointing) |
 | `env` | `Dict<string>` | `process.env` | Environment variables |
 | `executable` | `'bun' \| 'deno' \| 'node'` | Auto-detected | JavaScript runtime to use |
 | `executableArgs` | `string[]` | `[]` | Arguments to pass to the executable |
@@ -127,7 +126,7 @@ Configuration object for the `query()` function.
 | `settingSources` | [`SettingSource`](#settingsource)`[]` | `[]` (no settings) | Control which filesystem settings to load. When omitted, no settings are loaded. **Note:** Must include `'project'` to load CLAUDE.md files |
 | `stderr` | `(data: string) => void` | `undefined` | Callback for stderr output |
 | `strictMcpConfig` | `boolean` | `false` | Enforce strict MCP validation |
-| `systemPrompt` | `string \| { type: 'preset'; preset: 'claude_code'; append?: string }` | `undefined` (empty prompt) | System prompt configuration. Pass a string for custom prompt, or `{ type: 'preset', preset: 'claude_code' }` to use Claude Code's system prompt. When using the preset object form, add `append` to extend the system prompt with additional instructions |
+| `systemPrompt` | `string \| { type: 'preset'; preset: 'claude_code'; append?: string }` | `undefined` (minimal prompt) | System prompt configuration. Pass a string for custom prompt, or `{ type: 'preset', preset: 'claude_code' }` to use Claude Code's system prompt. When using the preset object form, add `append` to extend the system prompt with additional instructions |
 | `tools` | `string[] \| { type: 'preset'; preset: 'claude_code' }` | `undefined` | Tool configuration. Pass an array of tool names or use the preset to get Claude Code's default tools |
 
 ### `Query`
@@ -137,6 +136,7 @@ Interface returned by the `query()` function.
 ```typescript
 interface Query extends AsyncGenerator<SDKMessage, void> {
   interrupt(): Promise<void>;
+  rewindFiles(userMessageUuid: string): Promise<void>;
   setPermissionMode(mode: PermissionMode): Promise<void>;
   setModel(model?: string): Promise<void>;
   setMaxThinkingTokens(maxThinkingTokens: number | null): Promise<void>;
@@ -152,6 +152,7 @@ interface Query extends AsyncGenerator<SDKMessage, void> {
 | Method | Description |
 | :----- | :---------- |
 | `interrupt()` | Interrupts the query (only available in streaming input mode) |
+| `rewindFiles(userMessageUuid)` | Restores files to their state at the specified user message. Requires `enableFileCheckpointing: true`. See [File checkpointing](/docs/en/agent-sdk/file-checkpointing) |
 | `setPermissionMode()` | Changes the permission mode (only available in streaming input mode) |
 | `setModel()` | Changes the model (only available in streaming input mode) |
 | `setMaxThinkingTokens()` | Changes the maximum thinking tokens (only available in streaming input mode) |
@@ -567,6 +568,8 @@ type SDKPermissionDenial = {
 
 ## Hook Types
 
+For a comprehensive guide on using hooks with examples and common patterns, see the [Hooks guide](/docs/en/agent-sdk/hooks).
+
 ### `HookEvent`
 
 Available hook events.
@@ -607,8 +610,6 @@ Hook configuration with optional matcher.
 interface HookCallbackMatcher {
   matcher?: string;
   hooks: HookCallback[];
-  /** Timeout in seconds for all hooks in this matcher (default: 60) */
-  timeout?: number;
 }
 ```
 
@@ -651,7 +652,7 @@ type BaseHookInput = {
 type PreToolUseHookInput = BaseHookInput & {
   hook_event_name: 'PreToolUse';
   tool_name: string;
-  tool_input: ToolInput;
+  tool_input: unknown;
 }
 ```
 
@@ -661,9 +662,8 @@ type PreToolUseHookInput = BaseHookInput & {
 type PostToolUseHookInput = BaseHookInput & {
   hook_event_name: 'PostToolUse';
   tool_name: string;
-  tool_input: ToolInput;
-  tool_response: ToolOutput;
-  tool_use_id: string;
+  tool_input: unknown;
+  tool_response: unknown;
 }
 ```
 
@@ -674,7 +674,6 @@ type PostToolUseFailureHookInput = BaseHookInput & {
   hook_event_name: 'PostToolUseFailure';
   tool_name: string;
   tool_input: unknown;
-  tool_use_id: string;
   error: string;
   is_interrupt?: boolean;
 }
@@ -713,7 +712,7 @@ type SessionStartHookInput = BaseHookInput & {
 ```typescript
 type SessionEndHookInput = BaseHookInput & {
   hook_event_name: 'SessionEnd';
-  reason: 'clear' | 'logout' | 'prompt_input_exit' | 'other';
+  reason: ExitReason;  // String from EXIT_REASONS array
 }
 ```
 
@@ -742,8 +741,6 @@ type SubagentStartHookInput = BaseHookInput & {
 type SubagentStopHookInput = BaseHookInput & {
   hook_event_name: 'SubagentStop';
   stop_hook_active: boolean;
-  agent_id: string;
-  agent_transcript_path: string;
 }
 ```
 
@@ -811,31 +808,8 @@ type SyncHookJSONOutput = {
         additionalContext?: string;
       }
     | {
-        hookEventName: 'SubagentStart';
-        additionalContext?: string;
-      }
-    | {
         hookEventName: 'PostToolUse';
         additionalContext?: string;
-        updatedMCPToolOutput?: unknown;
-      }
-    | {
-        hookEventName: 'PostToolUseFailure';
-        additionalContext?: string;
-      }
-    | {
-        hookEventName: 'PermissionRequest';
-        decision:
-          | {
-              behavior: 'allow';
-              updatedInput?: Record<string, unknown>;
-              updatedPermissions?: PermissionUpdate[];
-            }
-          | {
-              behavior: 'deny';
-              message?: string;
-              interrupt?: boolean;
-            };
       };
 }
 ```
@@ -849,8 +823,9 @@ Documentation of input schemas for all built-in Claude Code tools. These types a
 **Note:** This is a documentation-only type for clarity. It represents the union of all tool input types.
 
 ```typescript
-type ToolInput = 
+type ToolInput =
   | AgentInput
+  | AskUserQuestionInput
   | BashInput
   | BashOutputInput
   | FileEditInput
@@ -890,6 +865,56 @@ interface AgentInput {
 ```
 
 Launches a new agent to handle complex, multi-step tasks autonomously.
+
+### AskUserQuestion
+
+**Tool name:** `AskUserQuestion`
+
+```typescript
+interface AskUserQuestionInput {
+  /**
+   * Questions to ask the user (1-4 questions)
+   */
+  questions: Array<{
+    /**
+     * The complete question to ask the user. Should be clear, specific,
+     * and end with a question mark.
+     */
+    question: string;
+    /**
+     * Very short label displayed as a chip/tag (max 12 chars).
+     * Examples: "Auth method", "Library", "Approach"
+     */
+    header: string;
+    /**
+     * The available choices (2-4 options). An "Other" option is
+     * automatically provided.
+     */
+    options: Array<{
+      /**
+       * Display text for this option (1-5 words)
+       */
+      label: string;
+      /**
+       * Explanation of what this option means
+       */
+      description: string;
+    }>;
+    /**
+     * Set to true to allow multiple selections
+     */
+    multiSelect: boolean;
+  }>;
+  /**
+   * User answers populated by the permission system.
+   * Maps question text to selected option label(s).
+   * Multi-select answers are comma-separated.
+   */
+  answers?: Record<string, string>;
+}
+```
+
+Asks the user clarifying questions during execution. See [Handle approvals and user input](/docs/en/agent-sdk/user-input#handle-clarifying-questions) for usage details.
 
 ### Bash
 
@@ -1258,8 +1283,9 @@ Documentation of output schemas for all built-in Claude Code tools. These types 
 **Note:** This is a documentation-only type for clarity. It represents the union of all tool output types.
 
 ```typescript
-type ToolOutput = 
+type ToolOutput =
   | TaskOutput
+  | AskUserQuestionOutput
   | BashOutput
   | BashOutputToolOutput
   | EditOutput
@@ -1308,6 +1334,35 @@ interface TaskOutput {
 ```
 
 Returns the final result from the subagent after completing the delegated task.
+
+### AskUserQuestion
+
+**Tool name:** `AskUserQuestion`
+
+```typescript
+interface AskUserQuestionOutput {
+  /**
+   * The questions that were asked
+   */
+  questions: Array<{
+    question: string;
+    header: string;
+    options: Array<{
+      label: string;
+      description: string;
+    }>;
+    multiSelect: boolean;
+  }>;
+  /**
+   * The answers provided by the user.
+   * Maps question text to answer string.
+   * Multi-select answers are comma-separated.
+   */
+  answers: Record<string, string>;
+}
+```
+
+Returns the questions asked and the user's answers.
 
 ### Bash
 
@@ -1993,20 +2048,17 @@ type SandboxSettings = {
 | `ignoreViolations` | [`SandboxIgnoreViolations`](#sandboxignoreviolations) | `undefined` | Configure which sandbox violations to ignore |
 | `enableWeakerNestedSandbox` | `boolean` | `false` | Enable a weaker nested sandbox for compatibility |
 
-<Note>
-**Filesystem and network access restrictions** are NOT configured via sandbox settings. Instead, they are derived from [permission rules](https://code.claude.com/docs/en/settings#permission-settings):
+> **Note:** **Filesystem and network access restrictions** are NOT configured via sandbox settings. Instead, they are derived from [permission rules](https://code.claude.com/docs/en/settings#permission-settings):
 
 - **Filesystem read restrictions**: Read deny rules
 - **Filesystem write restrictions**: Edit allow/deny rules
 - **Network restrictions**: WebFetch allow/deny rules
 
 Use sandbox settings for command execution sandboxing, and permission rules for filesystem and network access control.
-</Note>
 
 #### Example usage
 
 ```typescript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 const result = await query({
   prompt: "Build and test my project",
@@ -2014,15 +2066,15 @@ const result = await query({
     sandbox: {
       enabled: true,
       autoAllowBashIfSandboxed: true,
-      excludedCommands: ["docker"],
       network: {
-        allowLocalBinding: true,
-        allowUnixSockets: ["/var/run/docker.sock"]
+        allowLocalBinding: true
       }
     }
   }
 });
 ```
+
+> **Warning:** **Unix socket security**: The `allowUnixSockets` option can grant access to powerful system services. For example, allowing `/var/run/docker.sock` effectively grants full host system access through the Docker API, bypassing sandbox isolation. Only allow Unix sockets that are strictly necessary and understand the security implications of each.
 
 ### `NetworkSandboxSettings`
 
@@ -2066,14 +2118,11 @@ type SandboxIgnoreViolations = {
 
 When `allowUnsandboxedCommands` is enabled, the model can request to run commands outside the sandbox by setting `dangerouslyDisableSandbox: true` in the tool input. These requests fall back to the existing permissions system, meaning your `canUseTool` handler will be invoked, allowing you to implement custom authorization logic.
 
-<Note>
-**`excludedCommands` vs `allowUnsandboxedCommands`:**
+> **Note:** **`excludedCommands` vs `allowUnsandboxedCommands`:**
 - `excludedCommands`: A static list of commands that always bypass the sandbox automatically (e.g., `['docker']`). The model has no control over this.
 - `allowUnsandboxedCommands`: Lets the model decide at runtime whether to request unsandboxed execution by setting `dangerouslyDisableSandbox: true` in the tool input.
-</Note>
 
 ```typescript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 const result = await query({
   prompt: "Deploy my application",
@@ -2104,9 +2153,9 @@ This pattern enables you to:
 - **Implement allowlists**: Only permit specific commands to run unsandboxed
 - **Add approval workflows**: Require explicit authorization for privileged operations
 
-<Warning>
-Commands running with `dangerouslyDisableSandbox: true` have full system access. Ensure your `canUseTool` handler validates these requests carefully.
-</Warning>
+> **Warning:** Commands running with `dangerouslyDisableSandbox: true` have full system access. Ensure your `canUseTool` handler validates these requests carefully.
+
+If `permissionMode` is set to `bypassPermissions` and `allowUnsandboxedCommands` is enabled, the model can autonomously execute commands outside the sandbox without any approval prompts. This combination effectively allows the model to escape sandbox isolation silently.
 
 ## See also
 

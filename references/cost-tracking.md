@@ -26,10 +26,8 @@ When Claude processes requests, it reports token usage at the message level. Thi
 
 When Claude executes tools, the usage reporting differs based on whether tools are executed sequentially or in parallel:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 // Example: Tracking usage in a conversation
 const result = await query({
@@ -62,7 +60,6 @@ async def track_usage():
 asyncio.run(track_usage())
 ```
 
-</CodeGroup>
 
 ### Message Flow Example
 
@@ -119,14 +116,41 @@ console.log("Total usage:", result.usage);
 console.log("Total cost:", result.usage.total_cost_usd);
 ```
 
+### 4. Per-Model Usage Breakdown
+
+The result message also includes `modelUsage`, which provides authoritative per-model usage data. Like `total_cost_usd`, this field is accurate and suitable for billing purposes. This is especially useful when using multiple models (e.g., Haiku for subagents, Opus for the main agent).
+
+```typescript
+// modelUsage provides per-model breakdown
+type ModelUsage = {
+  inputTokens: number
+  outputTokens: number
+  cacheReadInputTokens: number
+  cacheCreationInputTokens: number
+  webSearchRequests: number
+  costUSD: number
+  contextWindow: number
+}
+
+// Access from result message
+const result = await query({ prompt: "..." });
+
+// result.modelUsage is a map of model name to ModelUsage
+for (const [modelName, usage] of Object.entries(result.modelUsage)) {
+  console.log(`${modelName}: $${usage.costUSD.toFixed(4)}`);
+  console.log(`  Input tokens: ${usage.inputTokens}`);
+  console.log(`  Output tokens: ${usage.outputTokens}`);
+}
+```
+
+For the complete type definitions, see the [TypeScript SDK reference](/docs/en/agent-sdk/typescript).
+
 ## Implementation: Cost Tracking System
 
 Here's a complete example of implementing a cost tracking system:
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 class CostTracker {
   private processedMessageIds = new Set<string>();
@@ -256,7 +280,6 @@ async def main():
 asyncio.run(main())
 ```
 
-</CodeGroup>
 
 ## Handling Edge Cases
 

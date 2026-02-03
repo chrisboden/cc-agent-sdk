@@ -22,9 +22,7 @@ When using the Claude Agent SDK, Skills are:
 
 Unlike subagents (which can be defined programmatically), Skills must be created as filesystem artifacts. The SDK does not provide a programmatic API for registering Skills.
 
-<Note>
-**Default behavior**: By default, the SDK does not load any filesystem settings. To use Skills, you must explicitly configure `settingSources: ['user', 'project']` (TypeScript) or `setting_sources=["user", "project"]` (Python) in your options.
-</Note>
+> **Note:** **Default behavior**: By default, the SDK does not load any filesystem settings. To use Skills, you must explicitly configure `settingSources: ['user', 'project']` (TypeScript) or `setting_sources=["user", "project"]` (Python) in your options.
 
 ## Using Skills with the SDK
 
@@ -35,7 +33,6 @@ To use Skills with the SDK, you need to:
 
 Once configured, Claude automatically discovers Skills from the specified directories and invokes them when relevant to the user's request.
 
-<CodeGroup>
 
 ```python Python
 import asyncio
@@ -58,7 +55,6 @@ asyncio.run(main())
 ```
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk";
 
 for await (const message of query({
   prompt: "Help me process this PDF document",
@@ -72,7 +68,6 @@ for await (const message of query({
 }
 ```
 
-</CodeGroup>
 
 ## Skill Locations
 
@@ -98,19 +93,14 @@ For complete guidance on creating Skills, including SKILL.md structure, multi-fi
 
 ## Tool Restrictions
 
-<Note>
-The `allowed-tools` frontmatter field in SKILL.md is only supported when using Claude Code CLI directly. **It does not apply when using Skills through the SDK**.
+> **Note:** The `allowed-tools` frontmatter field in SKILL.md is only supported when using Claude Code CLI directly. **It does not apply when using Skills through the SDK**.
 
 When using the SDK, control tool access through the main `allowedTools` option in your query configuration.
-</Note>
 
 To restrict tools for Skills in SDK applications, use the `allowedTools` option:
 
-<Note>
-Import statements from the first example are assumed in the following code snippets.
-</Note>
+> **Note:** Import statements from the first example are assumed in the following code snippets.
 
-<CodeGroup>
 
 ```python Python
 options = ClaudeAgentOptions(
@@ -138,13 +128,11 @@ for await (const message of query({
 }
 ```
 
-</CodeGroup>
 
 ## Discovering Available Skills
 
 To see which Skills are available in your SDK application, simply ask Claude:
 
-<CodeGroup>
 
 ```python Python
 options = ClaudeAgentOptions(
@@ -171,7 +159,6 @@ for await (const message of query({
 }
 ```
 
-</CodeGroup>
 
 Claude will list the available Skills based on your current working directory and installed plugins.
 
@@ -179,7 +166,6 @@ Claude will list the available Skills based on your current working directory an
 
 Test Skills by asking questions that match their descriptions:
 
-<CodeGroup>
 
 ```python Python
 options = ClaudeAgentOptions(
@@ -208,7 +194,6 @@ for await (const message of query({
 }
 ```
 
-</CodeGroup>
 
 Claude automatically invokes the relevant Skill if the description matches your request.
 
@@ -218,7 +203,6 @@ Claude automatically invokes the relevant Skill if the description matches your 
 
 **Check settingSources configuration**: Skills are only loaded when you explicitly configure `settingSources`/`setting_sources`. This is the most common issue:
 
-<CodeGroup>
 
 ```python Python
 # Wrong - Skills won't be loaded
@@ -246,13 +230,11 @@ const options = {
 };
 ```
 
-</CodeGroup>
 
 For more details on `settingSources`/`setting_sources`, see the [TypeScript SDK reference](/docs/en/agent-sdk/typescript#settingsource) or [Python SDK reference](/docs/en/agent-sdk/python#settingsource).
 
 **Check working directory**: The SDK loads Skills relative to the `cwd` option. Ensure it points to a directory containing `.claude/skills/`:
 
-<CodeGroup>
 
 ```python Python
 # Ensure your cwd points to the directory containing .claude/skills/
@@ -272,7 +254,6 @@ const options = {
 };
 ```
 
-</CodeGroup>
 
 See the "Using Skills with the SDK" section above for the complete pattern.
 
@@ -301,7 +282,7 @@ For general Skills troubleshooting (YAML syntax, debugging, etc.), see the [Clau
 - [Agent Skills in Claude Code](https://code.claude.com/docs/en/skills): Complete Skills guide with creation, examples, and troubleshooting
 - [Agent Skills Overview](/docs/en/agents-and-tools/agent-skills/overview): Conceptual overview, benefits, and architecture
 - [Agent Skills Best Practices](/docs/en/agents-and-tools/agent-skills/best-practices): Authoring guidelines for effective Skills
-- [Agent Skills Cookbook](https://github.com/anthropics/claude-cookbooks/tree/main/skills): Example Skills and templates
+- [Agent Skills Cookbook](https://platform.claude.com/cookbook/skills-notebooks-01-skills-introduction): Example Skills and templates
 
 ### SDK Resources
 - [Subagents in the SDK](/docs/en/agent-sdk/subagents): Similar filesystem-based agents with programmatic options

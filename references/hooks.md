@@ -1,1133 +1,818 @@
-# Hooks reference
+# Intercept and control agent behavior with hooks
 
-> This page provides reference documentation for implementing hooks in Claude Code.
-
-<Tip>
-  For a quickstart guide with examples, see [Get started with Claude Code hooks](/en/hooks-guide).
-</Tip>
-
-## Configuration
-
-Claude Code hooks are configured in your [settings files](/en/settings):
-
-* `~/.claude/settings.json` - User settings
-* `.claude/settings.json` - Project settings
-* `.claude/settings.local.json` - Local project settings (not committed)
-* Enterprise managed policy settings
-
-### Structure
-
-Hooks are organized by matchers, where each matcher can have multiple hooks:
-
-```json  theme={null}
-{
-  "hooks": {
-    "EventName": [
-      {
-        "matcher": "ToolPattern",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "your-command-here"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-* **matcher**: Pattern to match tool names, case-sensitive (only applicable for
-  `PreToolUse`, `PermissionRequest`, and `PostToolUse`)
-  * Simple strings match exactly: `Write` matches only the Write tool
-  * Supports regex: `Edit|Write` or `Notebook.*`
-  * Use `*` to match all tools. You can also use empty string (`""`) or leave
-    `matcher` blank.
-* **hooks**: Array of hooks to execute when the pattern matches
-  * `type`: Hook execution type - `"command"` for bash commands or `"prompt"` for LLM-based evaluation
-  * `command`: (For `type: "command"`) The bash command to execute (can use `$CLAUDE_PROJECT_DIR` environment variable)
-  * `prompt`: (For `type: "prompt"`) The prompt to send to the LLM for evaluation
-  * `timeout`: (Optional) How long a hook should run, in seconds, before canceling that specific hook
-
-For events like `UserPromptSubmit`, `Stop`, and `SubagentStop`
-that don't use matchers, you can omit the matcher field:
-
-```json  theme={null}
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/prompt-validator.py"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Project-Specific Hook Scripts
-
-You can use the environment variable `CLAUDE_PROJECT_DIR` (only available when
-Claude Code spawns the hook command) to reference scripts stored in your project,
-ensuring they work regardless of Claude's current directory:
-
-```json  theme={null}
-{
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-style.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Plugin hooks
-
-[Plugins](/en/plugins) can provide hooks that integrate seamlessly with your user and project hooks. Plugin hooks are automatically merged with your configuration when plugins are enabled.
-
-**How plugin hooks work**:
-
-* Plugin hooks are defined in the plugin's `hooks/hooks.json` file or in a file given by a custom path to the `hooks` field.
-* When a plugin is enabled, its hooks are merged with user and project hooks
-* Multiple hooks from different sources can respond to the same event
-* Plugin hooks use the `${CLAUDE_PLUGIN_ROOT}` environment variable to reference plugin files
-
-**Example plugin hook configuration**:
-
-```json  theme={null}
-{
-  "description": "Automatic code formatting",
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/format.sh",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-<Note>
-  Plugin hooks use the same format as regular hooks with an optional `description` field to explain the hook's purpose.
-</Note>
-
-<Note>
-  Plugin hooks run alongside your custom hooks. If multiple hooks match an event, they all execute in parallel.
-</Note>
-
-**Environment variables for plugins**:
-
-* `${CLAUDE_PLUGIN_ROOT}`: Absolute path to the plugin directory
-* `${CLAUDE_PROJECT_DIR}`: Project root directory (same as for project hooks)
-* All standard environment variables are available
-
-See the [plugin components reference](/en/plugins-reference#hooks) for details on creating plugin hooks.
-
-## Prompt-Based Hooks
-
-In addition to bash command hooks (`type: "command"`), Claude Code supports prompt-based hooks (`type: "prompt"`) that use an LLM to evaluate whether to allow or block an action. Prompt-based hooks are currently only supported for `Stop` and `SubagentStop` hooks, where they enable intelligent, context-aware decisions.
-
-### How prompt-based hooks work
-
-Instead of executing a bash command, prompt-based hooks:
-
-1. Send the hook input and your prompt to a fast LLM (Haiku)
-2. The LLM responds with structured JSON containing a decision
-3. Claude Code processes the decision automatically
-
-### Configuration
-
-```json  theme={null}
-{
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "Evaluate if Claude should stop: $ARGUMENTS. Check if all tasks are complete."
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-**Fields:**
-
-* `type`: Must be `"prompt"`
-* `prompt`: The prompt text to send to the LLM
-  * Use `$ARGUMENTS` as a placeholder for the hook input JSON
-  * If `$ARGUMENTS` is not present, input JSON is appended to the prompt
-* `timeout`: (Optional) Timeout in seconds (default: 30 seconds)
-
-### Response schema
-
-The LLM must respond with JSON containing:
-
-```json  theme={null}
-{
-  "decision": "approve" | "block",
-  "reason": "Explanation for the decision",
-  "continue": false,  // Optional: stops Claude entirely
-  "stopReason": "Message shown to user",  // Optional: custom stop message
-  "systemMessage": "Warning or context"  // Optional: shown to user
-}
-```
-
-**Response fields:**
-
-* `decision`: `"approve"` allows the action, `"block"` prevents it
-* `reason`: Explanation shown to Claude when decision is `"block"`
-* `continue`: (Optional) If `false`, stops Claude's execution entirely
-* `stopReason`: (Optional) Message shown when `continue` is false
-* `systemMessage`: (Optional) Additional message shown to the user
-
-### Supported hook events
-
-Prompt-based hooks work with any hook event, but are most useful for:
-
-* **Stop**: Intelligently decide if Claude should continue working
-* **SubagentStop**: Evaluate if a subagent has completed its task
-* **UserPromptSubmit**: Validate user prompts with LLM assistance
-* **PreToolUse**: Make context-aware permission decisions
-* **PermissionRequest**: Intelligently allow or deny permission dialogs
-
-### Example: Intelligent Stop hook
-
-```json  theme={null}
-{
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "You are evaluating whether Claude should stop working. Context: $ARGUMENTS\n\nAnalyze the conversation and determine if:\n1. All user-requested tasks are complete\n2. Any errors need to be addressed\n3. Follow-up work is needed\n\nRespond with JSON: {\"decision\": \"approve\" or \"block\", \"reason\": \"your explanation\"}",
-            "timeout": 30
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Example: SubagentStop with custom logic
-
-```json  theme={null}
-{
-  "hooks": {
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "Evaluate if this subagent should stop. Input: $ARGUMENTS\n\nCheck if:\n- The subagent completed its assigned task\n- Any errors occurred that need fixing\n- Additional context gathering is needed\n\nReturn: {\"decision\": \"approve\" or \"block\", \"reason\": \"explanation\"}"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### Comparison with bash command hooks
-
-| Feature               | Bash Command Hooks      | Prompt-Based Hooks             |
-| --------------------- | ----------------------- | ------------------------------ |
-| **Execution**         | Runs bash script        | Queries LLM                    |
-| **Decision logic**    | You implement in code   | LLM evaluates context          |
-| **Setup complexity**  | Requires script file    | Configure prompt               |
-| **Context awareness** | Limited to script logic | Natural language understanding |
-| **Performance**       | Fast (local execution)  | Slower (API call)              |
-| **Use case**          | Deterministic rules     | Context-aware decisions        |
-
-### Best practices
-
-* **Be specific in prompts**: Clearly state what you want the LLM to evaluate
-* **Include decision criteria**: List the factors the LLM should consider
-* **Test your prompts**: Verify the LLM makes correct decisions for your use cases
-* **Set appropriate timeouts**: Default is 30 seconds, adjust if needed
-* **Use for complex decisions**: Bash hooks are better for simple, deterministic rules
-
-See the [plugin components reference](/en/plugins-reference#hooks) for details on creating plugin hooks.
-
-## Hook Events
-
-### PreToolUse
-
-Runs after Claude creates tool parameters and before processing the tool call.
-
-**Common matchers:**
-
-* `Task` - Subagent tasks (see [subagents documentation](/en/sub-agents))
-* `Bash` - Shell commands
-* `Glob` - File pattern matching
-* `Grep` - Content search
-* `Read` - File reading
-* `Edit` - File editing
-* `Write` - File writing
-* `WebFetch`, `WebSearch` - Web operations
-
-Use [PreToolUse decision control](#pretooluse-decision-control) to allow, deny, or ask for permission to use the tool.
-
-### PermissionRequest
-
-Runs when the user is shown a permission dialog.
-Use [PermissionRequest decision control](#permissionrequest-decision-control) to allow or deny on behalf of the user.
-
-Recognizes the same matcher values as PreToolUse.
-
-### PostToolUse
-
-Runs immediately after a tool completes successfully.
-
-Recognizes the same matcher values as PreToolUse.
-
-### Notification
-
-Runs when Claude Code sends notifications. Supports matchers to filter by notification type.
-
-**Common matchers:**
-
-* `permission_prompt` - Permission requests from Claude Code
-* `idle_prompt` - When Claude is waiting for user input (after 60+ seconds of idle time)
-* `auth_success` - Authentication success notifications
-* `elicitation_dialog` - When Claude Code needs input for MCP tool elicitation
-
-You can use matchers to run different hooks for different notification types, or omit the matcher to run hooks for all notifications.
-
-**Example: Different notifications for different types**
-
-```json  theme={null}
-{
-  "hooks": {
-    "Notification": [
-      {
-        "matcher": "permission_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/permission-alert.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "idle_prompt",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/path/to/idle-notification.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### UserPromptSubmit
-
-Runs when the user submits a prompt, before Claude processes it. This allows you
-to add additional context based on the prompt/conversation, validate prompts, or
-block certain types of prompts.
-
-### Stop
-
-Runs when the main Claude Code agent has finished responding. Does not run if
-the stoppage occurred due to a user interrupt.
-
-### SubagentStop
-
-Runs when a Claude Code subagent (Task tool call) has finished responding.
-
-### PreCompact
-
-Runs before Claude Code is about to run a compact operation.
-
-**Matchers:**
-
-* `manual` - Invoked from `/compact`
-* `auto` - Invoked from auto-compact (due to full context window)
-
-### SessionStart
-
-Runs when Claude Code starts a new session or resumes an existing session (which
-currently does start a new session under the hood). Useful for loading in
-development context like existing issues or recent changes to your codebase, installing dependencies, or setting up environment variables.
-
-**Matchers:**
-
-* `startup` - Invoked from startup
-* `resume` - Invoked from `--resume`, `--continue`, or `/resume`
-* `clear` - Invoked from `/clear`
-* `compact` - Invoked from auto or manual compact.
-
-#### Persisting environment variables
-
-SessionStart hooks have access to the `CLAUDE_ENV_FILE` environment variable, which provides a file path where you can persist environment variables for subsequent bash commands.
-
-**Example: Setting individual environment variables**
-
-```bash  theme={null}
-#!/bin/bash
-
-if [ -n "$CLAUDE_ENV_FILE" ]; then
-  echo 'export NODE_ENV=production' >> "$CLAUDE_ENV_FILE"
-  echo 'export API_KEY=your-api-key' >> "$CLAUDE_ENV_FILE"
-  echo 'export PATH="$PATH:./node_modules/.bin"' >> "$CLAUDE_ENV_FILE"
-fi
-
-exit 0
-```
-
-**Example: Persisting all environment changes from the hook**
-
-When your setup modifies the environment (for example, `nvm use`), capture and persist all changes by diffing the environment:
-
-```bash  theme={null}
-#!/bin/bash
-
-ENV_BEFORE=$(export -p | sort)
-
-# Run your setup commands that modify the environment
-source ~/.nvm/nvm.sh
-nvm use 20
-
-if [ -n "$CLAUDE_ENV_FILE" ]; then
-  ENV_AFTER=$(export -p | sort)
-  comm -13 <(echo "$ENV_BEFORE") <(echo "$ENV_AFTER") >> "$CLAUDE_ENV_FILE"
-fi
-
-exit 0
-```
-
-Any variables written to this file will be available in all subsequent bash commands that Claude Code executes during the session.
-
-<Note>
-  `CLAUDE_ENV_FILE` is only available for SessionStart hooks. Other hook types do not have access to this variable.
-</Note>
-
-### SessionEnd
-
-Runs when a Claude Code session ends. Useful for cleanup tasks, logging session
-statistics, or saving session state.
-
-The `reason` field in the hook input will be one of:
-
-* `clear` - Session cleared with /clear command
-* `logout` - User logged out
-* `prompt_input_exit` - User exited while prompt input was visible
-* `other` - Other exit reasons
-
-## Hook Input
-
-Hooks receive JSON data via stdin containing session information and
-event-specific data:
-
-```typescript  theme={null}
-{
-  // Common fields
-  session_id: string
-  transcript_path: string  // Path to conversation JSON
-  cwd: string              // The current working directory when the hook is invoked
-  permission_mode: string  // Current permission mode: "default", "plan", "acceptEdits", or "bypassPermissions"
-
-  // Event-specific fields
-  hook_event_name: string
-  ...
-}
-```
-
-### PreToolUse Input
-
-The exact schema for `tool_input` depends on the tool.
-
-```json  theme={null}
-{
-  "session_id": "abc123",
-  "transcript_path": "/Users/.../.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
-  "cwd": "/Users/...",
-  "permission_mode": "default",
-  "hook_event_name": "PreToolUse",
-  "tool_name": "Write",
-  "tool_input": {
-    "file_path": "/path/to/file.txt",
-    "content": "file content"
-  },
-  "tool_use_id": "toolu_01ABC123..."
-}
-```
-
-### PostToolUse Input
-
-The exact schema for `tool_input` and `tool_response` depends on the tool.
-
-```json  theme={null}
-{
-  "session_id": "abc123",
-  "transcript_path": "/Users/.../.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
-  "cwd": "/Users/...",
-  "permission_mode": "default",
-  "hook_event_name": "PostToolUse",
-  "tool_name": "Write",
-  "tool_input": {
-    "file_path": "/path/to/file.txt",
-    "content": "file content"
-  },
-  "tool_response": {
-    "filePath": "/path/to/file.txt",
-    "success": true
-  },
-  "tool_use_id": "toolu_01ABC123..."
-}
-```
-
-### Notification Input
-
-```json  theme={null}
-{
-  "session_id": "abc123",
-  "transcript_path": "/Users/.../.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
-  "cwd": "/Users/...",
-  "permission_mode": "default",
-  "hook_event_name": "Notification",
-  "message": "Claude needs your permission to use Bash",
-  "notification_type": "permission_prompt"
-}
-```
-
-### UserPromptSubmit Input
-
-```json  theme={null}
-{
-  "session_id": "abc123",
-  "transcript_path": "/Users/.../.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
-  "cwd": "/Users/...",
-  "permission_mode": "default",
-  "hook_event_name": "UserPromptSubmit",
-  "prompt": "Write a function to calculate the factorial of a number"
-}
-```
-
-### Stop and SubagentStop Input
-
-`stop_hook_active` is true when Claude Code is already continuing as a result of
-a stop hook. Check this value or process the transcript to prevent Claude Code
-from running indefinitely.
-
-```json  theme={null}
-{
-  "session_id": "abc123",
-  "transcript_path": "~/.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
-  "permission_mode": "default",
-  "hook_event_name": "Stop",
-  "stop_hook_active": true
-}
-```
-
-### PreCompact Input
-
-For `manual`, `custom_instructions` comes from what the user passes into
-`/compact`. For `auto`, `custom_instructions` is empty.
-
-```json  theme={null}
-{
-  "session_id": "abc123",
-  "transcript_path": "~/.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
-  "permission_mode": "default",
-  "hook_event_name": "PreCompact",
-  "trigger": "manual",
-  "custom_instructions": ""
-}
-```
-
-### SessionStart Input
-
-```json  theme={null}
-{
-  "session_id": "abc123",
-  "transcript_path": "~/.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
-  "permission_mode": "default",
-  "hook_event_name": "SessionStart",
-  "source": "startup"
-}
-```
-
-### SessionEnd Input
-
-```json  theme={null}
-{
-  "session_id": "abc123",
-  "transcript_path": "~/.claude/projects/.../00893aaf-19fa-41d2-8238-13269b9b3ca0.jsonl",
-  "cwd": "/Users/...",
-  "permission_mode": "default",
-  "hook_event_name": "SessionEnd",
-  "reason": "exit"
-}
-```
-
-## Hook Output
-
-There are two mutually exclusive ways for hooks to return output back to Claude Code. The output
-communicates whether to block and any feedback that should be shown to Claude
-and the user.
-
-### Simple: Exit Code
-
-Hooks communicate status through exit codes, stdout, and stderr:
-
-* **Exit code 0**: Success. `stdout` is shown to the user in verbose mode
-  (ctrl+o), except for `UserPromptSubmit` and `SessionStart`, where stdout is
-  added to the context. JSON output in `stdout` is parsed for structured control
-  (see [Advanced: JSON Output](#advanced-json-output)).
-* **Exit code 2**: Blocking error. Only `stderr` is used as the error message
-  and fed back to Claude. The format is `[command]: {stderr}`. JSON in `stdout`
-  is **not** processed for exit code 2. See per-hook-event behavior below.
-* **Other exit codes**: Non-blocking error. `stderr` is shown to the user in verbose mode (ctrl+o) with
-  format `Failed with non-blocking status code: {stderr}`. If `stderr` is empty,
-  it shows `No stderr output`. Execution continues.
-
-<Warning>
-  Reminder: Claude Code does not see stdout if the exit code is 0, except for
-  the `UserPromptSubmit` hook where stdout is injected as context.
-</Warning>
-
-#### Exit Code 2 Behavior
-
-| Hook Event          | Behavior                                                           |
-| ------------------- | ------------------------------------------------------------------ |
-| `PreToolUse`        | Blocks the tool call, shows stderr to Claude                       |
-| `PermissionRequest` | Denies the permission, shows stderr to Claude                      |
-| `PostToolUse`       | Shows stderr to Claude (tool already ran)                          |
-| `Notification`      | N/A, shows stderr to user only                                     |
-| `UserPromptSubmit`  | Blocks prompt processing, erases prompt, shows stderr to user only |
-| `Stop`              | Blocks stoppage, shows stderr to Claude                            |
-| `SubagentStop`      | Blocks stoppage, shows stderr to Claude subagent                   |
-| `PreCompact`        | N/A, shows stderr to user only                                     |
-| `SessionStart`      | N/A, shows stderr to user only                                     |
-| `SessionEnd`        | N/A, shows stderr to user only                                     |
-
-### Advanced: JSON Output
-
-Hooks can return structured JSON in `stdout` for more sophisticated control.
-
-<Warning>
-  JSON output is only processed when the hook exits with code 0. If your hook
-  exits with code 2 (blocking error), `stderr` text is used directly—any JSON in `stdout`
-  is ignored. For other non-zero exit codes, only `stderr` is shown to the user in verbose mode (ctrl+o).
-</Warning>
-
-#### Common JSON Fields
-
-All hook types can include these optional fields:
-
-```json  theme={null}
-{
-  "continue": true, // Whether Claude should continue after hook execution (default: true)
-  "stopReason": "string", // Message shown when continue is false
-
-  "suppressOutput": true, // Hide stdout from transcript mode (default: false)
-  "systemMessage": "string" // Optional warning message shown to the user
-}
-```
-
-If `continue` is false, Claude stops processing after the hooks run.
-
-* For `PreToolUse`, this is different from `"permissionDecision": "deny"`, which
-  only blocks a specific tool call and provides automatic feedback to Claude.
-* For `PostToolUse`, this is different from `"decision": "block"`, which
-  provides automated feedback to Claude.
-* For `UserPromptSubmit`, this prevents the prompt from being processed.
-* For `Stop` and `SubagentStop`, this takes precedence over any
-  `"decision": "block"` output.
-* In all cases, `"continue" = false` takes precedence over any
-  `"decision": "block"` output.
-
-`stopReason` accompanies `continue` with a reason shown to the user, not shown
-to Claude.
-
-#### `PreToolUse` Decision Control
-
-`PreToolUse` hooks can control whether a tool call proceeds.
-
-* `"allow"` bypasses the permission system. `permissionDecisionReason` is shown
-  to the user but not to Claude.
-* `"deny"` prevents the tool call from executing. `permissionDecisionReason` is
-  shown to Claude.
-* `"ask"` asks the user to confirm the tool call in the UI.
-  `permissionDecisionReason` is shown to the user but not to Claude.
-
-Additionally, hooks can modify tool inputs before execution using `updatedInput`:
-
-* `updatedInput` allows you to modify the tool's input parameters before the tool executes.
-* This is most useful with `"permissionDecision": "allow"` to modify and approve tool calls.
-
-```json  theme={null}
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PreToolUse",
-    "permissionDecision": "allow"
-    "permissionDecisionReason": "My reason here",
-    "updatedInput": {
-      "field_to_modify": "new value"
-    }
-  }
-}
-```
-
-<Note>
-  The `decision` and `reason` fields are deprecated for PreToolUse hooks.
-  Use `hookSpecificOutput.permissionDecision` and
-  `hookSpecificOutput.permissionDecisionReason` instead. The deprecated fields
-  `"approve"` and `"block"` map to `"allow"` and `"deny"` respectively.
-</Note>
-
-#### `PermissionRequest` Decision Control
-
-`PermissionRequest` hooks can allow or deny permission requests shown to the user.
-
-* For `"behavior": "allow"` you can also optionally pass in an `"updatedInput"` that modifies the tool's input parameters before the tool executes.
-* For `"behavior": "deny"` you can also optionally pass in a `"message"` string that tells the model why the permission was denied, and a boolean `"interrupt"` which will stop Claude.
-
-```json  theme={null}
-{
-  "hookSpecificOutput": {
-    "hookEventName": "PermissionRequest",
-    "decision": {
-      "behavior": "allow",
-      "updatedInput": {
-        "command": "npm run lint"
-      }
-    }
-  }
-}
-```
-
-#### `PostToolUse` Decision Control
-
-`PostToolUse` hooks can provide feedback to Claude after tool execution.
-
-* `"block"` automatically prompts Claude with `reason`.
-* `undefined` does nothing. `reason` is ignored.
-* `"hookSpecificOutput.additionalContext"` adds context for Claude to consider.
-
-```json  theme={null}
-{
-  "decision": "block" | undefined,
-  "reason": "Explanation for decision",
-  "hookSpecificOutput": {
-    "hookEventName": "PostToolUse",
-    "additionalContext": "Additional information for Claude"
-  }
-}
-```
-
-#### `UserPromptSubmit` Decision Control
-
-`UserPromptSubmit` hooks can control whether a user prompt is processed and add context.
-
-**Adding context (exit code 0):**
-There are two ways to add context to the conversation:
-
-1. **Plain text stdout** (simpler): Any non-JSON text written to stdout is added
-   as context. This is the easiest way to inject information.
-
-2. **JSON with `additionalContext`** (structured): Use the JSON format below for
-   more control. The `additionalContext` field is added as context.
-
-Both methods work with exit code 0. Plain stdout is shown as hook output in
-the transcript; `additionalContext` is added more discretely.
-
-**Blocking prompts:**
-
-* `"decision": "block"` prevents the prompt from being processed. The submitted
-  prompt is erased from context. `"reason"` is shown to the user but not added
-  to context.
-* `"decision": undefined` (or omitted) allows the prompt to proceed normally.
-
-```json  theme={null}
-{
-  "decision": "block" | undefined,
-  "reason": "Explanation for decision",
-  "hookSpecificOutput": {
-    "hookEventName": "UserPromptSubmit",
-    "additionalContext": "My additional context here"
-  }
-}
-```
-
-<Note>
-  The JSON format isn't required for simple use cases. To add context, you can print plain text to stdout with exit code 0. Use JSON when you need to
-  block prompts or want more structured control.
-</Note>
-
-#### `Stop`/`SubagentStop` Decision Control
-
-`Stop` and `SubagentStop` hooks can control whether Claude must continue.
-
-* `"block"` prevents Claude from stopping. You must populate `reason` for Claude
-  to know how to proceed.
-* `undefined` allows Claude to stop. `reason` is ignored.
-
-```json  theme={null}
-{
-  "decision": "block" | undefined,
-  "reason": "Must be provided when Claude is blocked from stopping"
-}
-```
-
-#### `SessionStart` Decision Control
-
-`SessionStart` hooks allow you to load in context at the start of a session.
-
-* `"hookSpecificOutput.additionalContext"` adds the string to the context.
-* Multiple hooks' `additionalContext` values are concatenated.
-
-```json  theme={null}
-{
-  "hookSpecificOutput": {
-    "hookEventName": "SessionStart",
-    "additionalContext": "My additional context here"
-  }
-}
-```
-
-#### `SessionEnd` Decision Control
-
-`SessionEnd` hooks run when a session ends. They cannot block session termination
-but can perform cleanup tasks.
-
-#### Exit Code Example: Bash Command Validation
-
-```python  theme={null}
-#!/usr/bin/env python3
-import json
-import re
-import sys
-
-# Define validation rules as a list of (regex pattern, message) tuples
-VALIDATION_RULES = [
-    (
-        r"\bgrep\b(?!.*\|)",
-        "Use 'rg' (ripgrep) instead of 'grep' for better performance and features",
-    ),
-    (
-        r"\bfind\s+\S+\s+-name\b",
-        "Use 'rg --files | rg pattern' or 'rg --files -g pattern' instead of 'find -name' for better performance",
-    ),
-]
-
-
-def validate_command(command: str) -> list[str]:
-    issues = []
-    for pattern, message in VALIDATION_RULES:
-        if re.search(pattern, command):
-            issues.append(message)
-    return issues
-
-
-try:
-    input_data = json.load(sys.stdin)
-except json.JSONDecodeError as e:
-    print(f"Error: Invalid JSON input: {e}", file=sys.stderr)
-    sys.exit(1)
-
-tool_name = input_data.get("tool_name", "")
-tool_input = input_data.get("tool_input", {})
-command = tool_input.get("command", "")
-
-if tool_name != "Bash" or not command:
-    sys.exit(1)
-
-# Validate the command
-issues = validate_command(command)
-
-if issues:
-    for message in issues:
-        print(f"• {message}", file=sys.stderr)
-    # Exit code 2 blocks tool call and shows stderr to Claude
-    sys.exit(2)
-```
-
-#### JSON Output Example: UserPromptSubmit to Add Context and Validation
-
-<Note>
-  For `UserPromptSubmit` hooks, you can inject context using either method:
-
-  * **Plain text stdout** with exit code 0: Simplest approach, prints text
-  * **JSON output** with exit code 0: Use `"decision": "block"` to reject prompts,
-    or `additionalContext` for structured context injection
-
-  Remember: Exit code 2 only uses `stderr` for the error message. To block using
-  JSON (with a custom reason), use `"decision": "block"` with exit code 0.
-</Note>
-
-```python  theme={null}
-#!/usr/bin/env python3
-import json
-import sys
-import re
-import datetime
-
-# Load input from stdin
-try:
-    input_data = json.load(sys.stdin)
-except json.JSONDecodeError as e:
-    print(f"Error: Invalid JSON input: {e}", file=sys.stderr)
-    sys.exit(1)
-
-prompt = input_data.get("prompt", "")
-
-# Check for sensitive patterns
-sensitive_patterns = [
-    (r"(?i)\b(password|secret|key|token)\s*[:=]", "Prompt contains potential secrets"),
-]
-
-for pattern, message in sensitive_patterns:
-    if re.search(pattern, prompt):
-        # Use JSON output to block with a specific reason
-        output = {
-            "decision": "block",
-            "reason": f"Security policy violation: {message}. Please rephrase your request without sensitive information."
-        }
-        print(json.dumps(output))
-        sys.exit(0)
-
-# Add current time to context
-context = f"Current time: {datetime.datetime.now()}"
-print(context)
-
-"""
-The following is also equivalent:
-print(json.dumps({
-  "hookSpecificOutput": {
-    "hookEventName": "UserPromptSubmit",
-    "additionalContext": context,
-  },
-}))
-"""
-
-# Allow the prompt to proceed with the additional context
-sys.exit(0)
-```
-
-#### JSON Output Example: PreToolUse with Approval
-
-```python  theme={null}
-#!/usr/bin/env python3
-import json
-import sys
-
-# Load input from stdin
-try:
-    input_data = json.load(sys.stdin)
-except json.JSONDecodeError as e:
-    print(f"Error: Invalid JSON input: {e}", file=sys.stderr)
-    sys.exit(1)
-
-tool_name = input_data.get("tool_name", "")
-tool_input = input_data.get("tool_input", {})
-
-# Example: Auto-approve file reads for documentation files
-if tool_name == "Read":
-    file_path = tool_input.get("file_path", "")
-    if file_path.endswith((".md", ".mdx", ".txt", ".json")):
-        # Use JSON output to auto-approve the tool call
-        output = {
-            "decision": "approve",
-            "reason": "Documentation file auto-approved",
-            "suppressOutput": True  # Don't show in verbose mode
-        }
-        print(json.dumps(output))
-        sys.exit(0)
-
-# For other cases, let the normal permission flow proceed
-sys.exit(0)
-```
-
-## Working with MCP Tools
-
-Claude Code hooks work seamlessly with
-[Model Context Protocol (MCP) tools](/en/mcp). When MCP servers
-provide tools, they appear with a special naming pattern that you can match in
-your hooks.
-
-### MCP Tool Naming
-
-MCP tools follow the pattern `mcp__<server>__<tool>`, for example:
-
-* `mcp__memory__create_entities` - Memory server's create entities tool
-* `mcp__filesystem__read_file` - Filesystem server's read file tool
-* `mcp__github__search_repositories` - GitHub server's search tool
-
-### Configuring Hooks for MCP Tools
-
-You can target specific MCP tools or entire MCP servers:
-
-```json  theme={null}
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "mcp__memory__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo 'Memory operation initiated' >> ~/mcp-operations.log"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__.*__write.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/home/user/scripts/validate-mcp-write.py"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-## Examples
-
-<Tip>
-  For practical examples including code formatting, notifications, and file protection, see [More Examples](/en/hooks-guide#more-examples) in the get started guide.
-</Tip>
-
-## Security Considerations
-
-### Disclaimer
-
-**USE AT YOUR OWN RISK**: Claude Code hooks execute arbitrary shell commands on
-your system automatically. By using hooks, you acknowledge that:
-
-* You are solely responsible for the commands you configure
-* Hooks can modify, delete, or access any files your user account can access
-* Malicious or poorly written hooks can cause data loss or system damage
-* Anthropic provides no warranty and assumes no liability for any damages
-  resulting from hook usage
-* You should thoroughly test hooks in a safe environment before production use
-
-Always review and understand any hook commands before adding them to your
-configuration.
-
-### Security Best Practices
-
-Here are some key practices for writing more secure hooks:
-
-1. **Validate and sanitize inputs** - Never trust input data blindly
-2. **Always quote shell variables** - Use `"$VAR"` not `$VAR`
-3. **Block path traversal** - Check for `..` in file paths
-4. **Use absolute paths** - Specify full paths for scripts (use
-   "\$CLAUDE\_PROJECT\_DIR" for the project path)
-5. **Skip sensitive files** - Avoid `.env`, `.git/`, keys, etc.
-
-### Configuration Safety
-
-Direct edits to hooks in settings files don't take effect immediately. Claude
-Code:
-
-1. Captures a snapshot of hooks at startup
-2. Uses this snapshot throughout the session
-3. Warns if hooks are modified externally
-4. Requires review in `/hooks` menu for changes to apply
-
-This prevents malicious hook modifications from affecting your current session.
-
-## Hook Execution Details
-
-* **Timeout**: 60-second execution limit by default, configurable per command.
-  * A timeout for an individual command does not affect the other commands.
-* **Parallelization**: All matching hooks run in parallel
-* **Deduplication**: Multiple identical hook commands are deduplicated automatically
-* **Environment**: Runs in current directory with Claude Code's environment
-  * The `CLAUDE_PROJECT_DIR` environment variable is available and contains the
-    absolute path to the project root directory (where Claude Code was started)
-  * The `CLAUDE_CODE_REMOTE` environment variable indicates whether the hook is running in a remote (web) environment (`"true"`) or local CLI environment (not set or empty). Use this to run different logic based on execution context.
-* **Input**: JSON via stdin
-* **Output**:
-  * PreToolUse/PermissionRequest/PostToolUse/Stop/SubagentStop: Progress shown in verbose mode (ctrl+o)
-  * Notification/SessionEnd: Logged to debug only (`--debug`)
-  * UserPromptSubmit/SessionStart: stdout added as context for Claude
-
-## Debugging
-
-### Basic Troubleshooting
-
-If your hooks aren't working:
-
-1. **Check configuration** - Run `/hooks` to see if your hook is registered
-2. **Verify syntax** - Ensure your JSON settings are valid
-3. **Test commands** - Run hook commands manually first
-4. **Check permissions** - Make sure scripts are executable
-5. **Review logs** - Use `claude --debug` to see hook execution details
-
-Common issues:
-
-* **Quotes not escaped** - Use `\"` inside JSON strings
-* **Wrong matcher** - Check tool names match exactly (case-sensitive)
-* **Command not found** - Use full paths for scripts
-
-### Advanced Debugging
-
-For complex hook issues:
-
-1. **Inspect hook execution** - Use `claude --debug` to see detailed hook
-   execution
-2. **Validate JSON schemas** - Test hook input/output with external tools
-3. **Check environment variables** - Verify Claude Code's environment is correct
-4. **Test edge cases** - Try hooks with unusual file paths or inputs
-5. **Monitor system resources** - Check for resource exhaustion during hook
-   execution
-6. **Use structured logging** - Implement logging in your hook scripts
-
-### Debug Output Example
-
-Use `claude --debug` to see hook execution details:
-
-```
-[DEBUG] Executing hooks for PostToolUse:Write
-[DEBUG] Getting matching hook commands for PostToolUse with query: Write
-[DEBUG] Found 1 hook matchers in settings
-[DEBUG] Matched 1 hooks for query "Write"
-[DEBUG] Found 1 hook commands to execute
-[DEBUG] Executing hook command: <Your command> with timeout 60000ms
-[DEBUG] Hook command completed with status 0: <Your stdout>
-```
-
-Progress messages appear in verbose mode (ctrl+o) showing:
-
-* Which hook is running
-* Command being executed
-* Success/failure status
-* Output or error messages
-
+Intercept and customize agent behavior at key execution points with hooks
 
 ---
 
-> To find navigation and other pages in this documentation, fetch the llms.txt file at: https://code.claude.com/docs/llms.txt
+Hooks let you intercept agent execution at key points to add validation, logging, security controls, or custom logic. With hooks, you can:
+
+- **Block dangerous operations** before they execute, like destructive shell commands or unauthorized file access
+- **Log and audit** every tool call for compliance, debugging, or analytics
+- **Transform inputs and outputs** to sanitize data, inject credentials, or redirect file paths
+- **Require human approval** for sensitive actions like database writes or API calls
+- **Track session lifecycle** to manage state, clean up resources, or send notifications
+
+A hook has two parts:
+
+1. **The callback function**: the logic that runs when the hook fires
+2. **The hook configuration**: tells the SDK which event to hook into (like `PreToolUse`) and which tools to match
+
+The following example blocks the agent from modifying `.env` files. First, define a callback that checks the file path, then pass it to `query()` to run before any Write or Edit tool call:
+
+
+```python Python
+import asyncio
+from claude_agent_sdk import query, ClaudeAgentOptions, HookMatcher
+
+# Define a hook callback that receives tool call details
+async def protect_env_files(input_data, tool_use_id, context):
+    # Extract the file path from the tool's input arguments
+    file_path = input_data['tool_input'].get('file_path', '')
+    file_name = file_path.split('/')[-1]
+
+    # Block the operation if targeting a .env file
+    if file_name == '.env':
+        return {
+            'hookSpecificOutput': {
+                'hookEventName': input_data['hook_event_name'],
+                'permissionDecision': 'deny',
+                'permissionDecisionReason': 'Cannot modify .env files'
+            }
+        }
+
+    # Return empty object to allow the operation
+    return {}
+
+async def main():
+    async for message in query(
+        prompt="Update the database configuration",
+        options=ClaudeAgentOptions(
+            hooks={
+                # Register the hook for PreToolUse events
+                # The matcher filters to only Write and Edit tool calls
+                'PreToolUse': [HookMatcher(matcher='Write|Edit', hooks=[protect_env_files])]
+            }
+        )
+    ):
+        print(message)
+
+asyncio.run(main())
+```
+
+```typescript TypeScript
+
+// Define a hook callback with the HookCallback type
+const protectEnvFiles: HookCallback = async (input, toolUseID, { signal }) => {
+  // Cast input to the specific hook type for type safety
+  const preInput = input as PreToolUseHookInput;
+
+  // Extract the file path from the tool's input arguments
+  const filePath = preInput.tool_input?.file_path as string;
+  const fileName = filePath?.split('/').pop();
+
+  // Block the operation if targeting a .env file
+  if (fileName === '.env') {
+    return {
+      hookSpecificOutput: {
+        hookEventName: input.hook_event_name,
+        permissionDecision: 'deny',
+        permissionDecisionReason: 'Cannot modify .env files'
+      }
+    };
+  }
+
+  // Return empty object to allow the operation
+  return {};
+};
+
+for await (const message of query({
+  prompt: "Update the database configuration",
+  options: {
+    hooks: {
+      // Register the hook for PreToolUse events
+      // The matcher filters to only Write and Edit tool calls
+      PreToolUse: [{ matcher: 'Write|Edit', hooks: [protectEnvFiles] }]
+    }
+  }
+})) {
+  console.log(message);
+}
+```
+
+
+This is a `PreToolUse` hook. It runs before the tool executes and can block or allow operations based on your logic. The rest of this guide covers all available hooks, their configuration options, and patterns for common use cases.
+
+## Available hooks
+
+The SDK provides hooks for different stages of agent execution. Some hooks are available in both SDKs, while others are TypeScript-only because the Python SDK doesn't support them.
+
+| Hook Event | Python SDK | TypeScript SDK | What triggers it | Example use case |
+|------------|------------|----------------|------------------|------------------|
+| `PreToolUse` | Yes | Yes | Tool call request (can block or modify) | Block dangerous shell commands |
+| `PostToolUse` | Yes | Yes | Tool execution result | Log all file changes to audit trail |
+| `PostToolUseFailure` | No | Yes | Tool execution failure | Handle or log tool errors |
+| `UserPromptSubmit` | Yes | Yes | User prompt submission | Inject additional context into prompts |
+| `Stop` | Yes | Yes | Agent execution stop | Save session state before exit |
+| `SubagentStart` | No | Yes | Subagent initialization | Track parallel task spawning |
+| `SubagentStop` | Yes | Yes | Subagent completion | Aggregate results from parallel tasks |
+| `PreCompact` | Yes | Yes | Conversation compaction request | Archive full transcript before summarizing |
+| `PermissionRequest` | No | Yes | Permission dialog would be displayed | Custom permission handling |
+| `SessionStart` | No | Yes | Session initialization | Initialize logging and telemetry |
+| `SessionEnd` | No | Yes | Session termination | Clean up temporary resources |
+| `Notification` | No | Yes | Agent status messages | Send agent status updates to Slack or PagerDuty |
+
+## Common use cases
+
+Hooks are flexible enough to handle many different scenarios. Here are some of the most common patterns organized by category.
+
+
+  
+#### Security
+
+    - Block dangerous commands (like `rm -rf /`, destructive SQL)
+    - Validate file paths before write operations
+    - Enforce allowlists/blocklists for tool usage
+  
+  
+#### Logging
+
+    - Create audit trails of all agent actions
+    - Track execution metrics and performance
+    - Debug agent behavior in development
+  
+  
+#### Tool interception
+
+    - Redirect file operations to sandboxed directories
+    - Inject environment variables or credentials
+    - Transform tool inputs or outputs
+  
+  
+#### Authorization
+
+    - Implement role-based access control
+    - Require human approval for sensitive operations
+    - Rate limit specific tool usage
+  
+
+
+## Configure hooks
+
+To configure a hook for your agent, pass the hook in the `options.hooks` parameter when calling `query()`:
+
+
+```python Python
+async for message in query(
+    prompt="Your prompt",
+    options=ClaudeAgentOptions(
+        hooks={
+            'PreToolUse': [HookMatcher(matcher='Bash', hooks=[my_callback])]
+        }
+    )
+):
+    print(message)
+```
+
+```typescript TypeScript
+for await (const message of query({
+  prompt: "Your prompt",
+  options: {
+    hooks: {
+      PreToolUse: [{ matcher: 'Bash', hooks: [myCallback] }]
+    }
+  }
+})) {
+  console.log(message);
+}
+```
+
+
+The `hooks` option is a dictionary (Python) or object (TypeScript) where:
+- **Keys** are [hook event names](#available-hooks) (e.g., `'PreToolUse'`, `'PostToolUse'`, `'Stop'`)
+- **Values** are arrays of [matchers](#matchers), each containing an optional filter pattern and your [callback functions](#callback-function-inputs)
+
+Your hook callback functions receive [input data](#input-data) about the event and return a [response](#callback-outputs) so the agent knows to allow, block, or modify the operation.
+
+### Matchers
+
+Use matchers to filter which tools trigger your callbacks:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `matcher` | `string` | `undefined` | Regex pattern to match tool names. Built-in tools include `Bash`, `Read`, `Write`, `Edit`, `Glob`, `Grep`, `WebFetch`, `Task`, and others. MCP tools use the pattern `mcp__<server>__<action>`. |
+| `hooks` | `HookCallback[]` | - | Required. Array of callback functions to execute when the pattern matches |
+| `timeout` | `number` | `60` | Timeout in seconds; increase for hooks that make external API calls |
+
+Use the `matcher` pattern to target specific tools whenever possible. A matcher with `'Bash'` only runs for Bash commands, while omitting the pattern runs your callbacks for every tool call. Note that matchers only filter by **tool name**, not by file paths or other arguments—to filter by file path, check `tool_input.file_path` inside your callback.
+
+Matchers only apply to tool-based hooks (`PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`). For lifecycle hooks like `Stop`, `SessionStart`, and `Notification`, matchers are ignored and the hook fires for all events of that type.
+
+> **Tip:** **Discovering tool names:** Check the `tools` array in the initial system message when your session starts, or add a hook without a matcher to log all tool calls.
+
+**MCP tool naming:** MCP tools always start with `mcp__` followed by the server name and action: `mcp__<server>__<action>`. For example, if you configure a server named `playwright`, its tools will be named `mcp__playwright__browser_screenshot`, `mcp__playwright__browser_click`, etc. The server name comes from the key you use in the `mcpServers` configuration.
+
+This example uses a matcher to run a hook only for file-modifying tools when the `PreToolUse` event fires:
+
+
+```python Python
+options = ClaudeAgentOptions(
+    hooks={
+        'PreToolUse': [
+            HookMatcher(matcher='Write|Edit', hooks=[validate_file_path])
+        ]
+    }
+)
+```
+
+```typescript TypeScript
+const options = {
+  hooks: {
+    PreToolUse: [
+      { matcher: 'Write|Edit', hooks: [validateFilePath] }
+    ]
+  }
+};
+```
+
+
+### Callback function inputs
+
+Every hook callback receives three arguments:
+
+1. **Input data** (`dict` / `HookInput`): Event details. See [input data](#input-data) for fields
+2. **Tool use ID** (`str | None` / `string | null`): Correlate `PreToolUse` and `PostToolUse` events
+3. **Context** (`HookContext`): In TypeScript, contains a `signal` property (`AbortSignal`) for cancellation. Pass this to async operations like `fetch()` so they automatically cancel if the hook times out. In Python, this argument is reserved for future use.
+
+### Input data
+
+The first argument to your hook callback contains information about the event. Field names are identical across SDKs (both use snake_case).
+
+**Common fields** present in all hook types:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hook_event_name` | `string` | The hook type (`PreToolUse`, `PostToolUse`, etc.) |
+| `session_id` | `string` | Current session identifier |
+| `transcript_path` | `string` | Path to the conversation transcript |
+| `cwd` | `string` | Current working directory |
+
+**Hook-specific fields** vary by hook type. Items marked <sup>TS</sup> are only available in the TypeScript SDK:
+
+| Field | Type | Description | Hooks |
+|-------|------|-------------|-------|
+| `tool_name` | `string` | Name of the tool being called | PreToolUse, PostToolUse, PostToolUseFailure<sup>TS</sup>, PermissionRequest<sup>TS</sup> |
+| `tool_input` | `object` | Arguments passed to the tool | PreToolUse, PostToolUse, PostToolUseFailure<sup>TS</sup>, PermissionRequest<sup>TS</sup> |
+| `tool_response` | `any` | Result returned from tool execution | PostToolUse |
+| `error` | `string` | Error message from tool execution failure | PostToolUseFailure<sup>TS</sup> |
+| `is_interrupt` | `boolean` | Whether the failure was caused by an interrupt | PostToolUseFailure<sup>TS</sup> |
+| `prompt` | `string` | The user's prompt text | UserPromptSubmit |
+| `stop_hook_active` | `boolean` | Whether a stop hook is currently processing | Stop, SubagentStop |
+| `agent_id` | `string` | Unique identifier for the subagent | SubagentStart<sup>TS</sup>, SubagentStop<sup>TS</sup> |
+| `agent_type` | `string` | Type/role of the subagent | SubagentStart<sup>TS</sup> |
+| `agent_transcript_path` | `string` | Path to the subagent's conversation transcript | SubagentStop<sup>TS</sup> |
+| `trigger` | `string` | What triggered compaction: `manual` or `auto` | PreCompact |
+| `custom_instructions` | `string` | Custom instructions provided for compaction | PreCompact |
+| `permission_suggestions` | `array` | Suggested permission updates for the tool | PermissionRequest<sup>TS</sup> |
+| `source` | `string` | How the session started: `startup`, `resume`, `clear`, or `compact` | SessionStart<sup>TS</sup> |
+| `reason` | `string` | Why the session ended: `clear`, `logout`, `prompt_input_exit`, `bypass_permissions_disabled`, or `other` | SessionEnd<sup>TS</sup> |
+| `message` | `string` | Status message from the agent | Notification<sup>TS</sup> |
+| `notification_type` | `string` | Type of notification: `permission_prompt`, `idle_prompt`, `auth_success`, or `elicitation_dialog` | Notification<sup>TS</sup> |
+| `title` | `string` | Optional title set by the agent | Notification<sup>TS</sup> |
+
+The code below defines a hook callback that uses `tool_name` and `tool_input` to log details about each tool call:
+
+
+```python Python
+async def log_tool_calls(input_data, tool_use_id, context):
+    if input_data['hook_event_name'] == 'PreToolUse':
+        print(f"Tool: {input_data['tool_name']}")
+        print(f"Input: {input_data['tool_input']}")
+    return {}
+```
+
+```typescript TypeScript
+const logToolCalls: HookCallback = async (input, toolUseID, { signal }) => {
+  if (input.hook_event_name === 'PreToolUse') {
+    const preInput = input as PreToolUseHookInput;
+    console.log(`Tool: ${preInput.tool_name}`);
+    console.log(`Input:`, preInput.tool_input);
+  }
+  return {};
+};
+```
+
+
+### Callback outputs
+
+Your callback function returns an object that tells the SDK how to proceed. Return an empty object `{}` to allow the operation without changes. To block, modify, or add context to the operation, return an object with a `hookSpecificOutput` field containing your decision.
+
+**Top-level fields** (outside `hookSpecificOutput`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `continue` | `boolean` | Whether the agent should continue after this hook (default: `true`) |
+| `stopReason` | `string` | Message shown when `continue` is `false` |
+| `suppressOutput` | `boolean` | Hide stdout from the transcript (default: `false`) |
+| `systemMessage` | `string` | Message injected into the conversation for Claude to see |
+
+**Fields inside `hookSpecificOutput`**:
+
+| Field | Type | Hooks | Description |
+|-------|------|-------|-------------|
+| `hookEventName` | `string` | All | Required. Use `input.hook_event_name` to match the current event |
+| `permissionDecision` | `'allow'` \| `'deny'` \| `'ask'` | PreToolUse | Controls whether the tool executes |
+| `permissionDecisionReason` | `string` | PreToolUse | Explanation shown to Claude for the decision |
+| `updatedInput` | `object` | PreToolUse | Modified tool input (requires `permissionDecision: 'allow'`) |
+| `additionalContext` | `string` | PreToolUse, PostToolUse, UserPromptSubmit, SessionStart<sup>TS</sup>, SubagentStart<sup>TS</sup> | Context added to the conversation |
+
+This example blocks write operations to the `/etc` directory while injecting a system message to remind Claude about safe file practices:
+
+
+```python Python
+async def block_etc_writes(input_data, tool_use_id, context):
+    file_path = input_data['tool_input'].get('file_path', '')
+
+    if file_path.startswith('/etc'):
+        return {
+            # Top-level field: inject guidance into the conversation
+            'systemMessage': 'Remember: system directories like /etc are protected.',
+            # hookSpecificOutput: block the operation
+            'hookSpecificOutput': {
+                'hookEventName': input_data['hook_event_name'],
+                'permissionDecision': 'deny',
+                'permissionDecisionReason': 'Writing to /etc is not allowed'
+            }
+        }
+    return {}
+```
+
+```typescript TypeScript
+const blockEtcWrites: HookCallback = async (input, toolUseID, { signal }) => {
+  const filePath = (input as PreToolUseHookInput).tool_input?.file_path as string;
+
+  if (filePath?.startsWith('/etc')) {
+    return {
+      // Top-level field: inject guidance into the conversation
+      systemMessage: 'Remember: system directories like /etc are protected.',
+      // hookSpecificOutput: block the operation
+      hookSpecificOutput: {
+        hookEventName: input.hook_event_name,
+        permissionDecision: 'deny',
+        permissionDecisionReason: 'Writing to /etc is not allowed'
+      }
+    };
+  }
+  return {};
+};
+```
+
+
+#### Permission decision flow
+
+When multiple hooks or permission rules apply, the SDK evaluates them in this order:
+
+1. **Deny** rules are checked first (any match = immediate denial).
+2. **Ask** rules are checked second.
+3. **Allow** rules are checked third.
+4. **Default to Ask** if nothing matches.
+
+If any hook returns `deny`, the operation is blocked—other hooks returning `allow` won't override it.
+
+#### Block a tool
+
+Return a deny decision to prevent tool execution:
+
+
+```python Python
+async def block_dangerous_commands(input_data, tool_use_id, context):
+    if input_data['hook_event_name'] != 'PreToolUse':
+        return {}
+
+    command = input_data['tool_input'].get('command', '')
+
+    if 'rm -rf /' in command:
+        return {
+            'hookSpecificOutput': {
+                'hookEventName': input_data['hook_event_name'],
+                'permissionDecision': 'deny',
+                'permissionDecisionReason': 'Dangerous command blocked: rm -rf /'
+            }
+        }
+    return {}
+```
+
+```typescript TypeScript
+const blockDangerousCommands: HookCallback = async (input, toolUseID, { signal }) => {
+  if (input.hook_event_name !== 'PreToolUse') return {};
+
+  const command = (input as PreToolUseHookInput).tool_input.command as string;
+
+  if (command?.includes('rm -rf /')) {
+    return {
+      hookSpecificOutput: {
+        hookEventName: input.hook_event_name,
+        permissionDecision: 'deny',
+        permissionDecisionReason: 'Dangerous command blocked: rm -rf /'
+      }
+    };
+  }
+  return {};
+};
+```
+
+
+#### Modify tool input
+
+Return updated input to change what the tool receives:
+
+
+```python Python
+async def redirect_to_sandbox(input_data, tool_use_id, context):
+    if input_data['hook_event_name'] != 'PreToolUse':
+        return {}
+
+    if input_data['tool_name'] == 'Write':
+        original_path = input_data['tool_input'].get('file_path', '')
+        return {
+            'hookSpecificOutput': {
+                'hookEventName': input_data['hook_event_name'],
+                'permissionDecision': 'allow',
+                'updatedInput': {
+                    **input_data['tool_input'],
+                    'file_path': f'/sandbox{original_path}'
+                }
+            }
+        }
+    return {}
+```
+
+```typescript TypeScript
+const redirectToSandbox: HookCallback = async (input, toolUseID, { signal }) => {
+  if (input.hook_event_name !== 'PreToolUse') return {};
+
+  const preInput = input as PreToolUseHookInput;
+  if (preInput.tool_name === 'Write') {
+    const originalPath = preInput.tool_input.file_path as string;
+    return {
+      hookSpecificOutput: {
+        hookEventName: input.hook_event_name,
+        permissionDecision: 'allow',
+        updatedInput: {
+          ...preInput.tool_input,
+          file_path: `/sandbox${originalPath}`
+        }
+      }
+    };
+  }
+  return {};
+};
+```
+
+
+> **Note:** When using `updatedInput`, you must also include `permissionDecision`. Always return a new object rather than mutating the original `tool_input`.
+
+#### Add a system message
+
+Inject context into the conversation:
+
+
+```python Python
+async def add_security_reminder(input_data, tool_use_id, context):
+    return {
+        'systemMessage': 'Remember to follow security best practices.'
+    }
+```
+
+```typescript TypeScript
+const addSecurityReminder: HookCallback = async (input, toolUseID, { signal }) => {
+  return {
+    systemMessage: 'Remember to follow security best practices.'
+  };
+};
+```
+
+
+#### Auto-approve specific tools
+
+Bypass permission prompts for trusted tools. This is useful when you want certain operations to run without user confirmation:
+
+
+```python Python
+async def auto_approve_read_only(input_data, tool_use_id, context):
+    if input_data['hook_event_name'] != 'PreToolUse':
+        return {}
+
+    read_only_tools = ['Read', 'Glob', 'Grep', 'LS']
+    if input_data['tool_name'] in read_only_tools:
+        return {
+            'hookSpecificOutput': {
+                'hookEventName': input_data['hook_event_name'],
+                'permissionDecision': 'allow',
+                'permissionDecisionReason': 'Read-only tool auto-approved'
+            }
+        }
+    return {}
+```
+
+```typescript TypeScript
+const autoApproveReadOnly: HookCallback = async (input, toolUseID, { signal }) => {
+  if (input.hook_event_name !== 'PreToolUse') return {};
+
+  const preInput = input as PreToolUseHookInput;
+  const readOnlyTools = ['Read', 'Glob', 'Grep', 'LS'];
+  if (readOnlyTools.includes(preInput.tool_name)) {
+    return {
+      hookSpecificOutput: {
+        hookEventName: input.hook_event_name,
+        permissionDecision: 'allow',
+        permissionDecisionReason: 'Read-only tool auto-approved'
+      }
+    };
+  }
+  return {};
+};
+```
+
+
+> **Note:** The `permissionDecision` field accepts three values: `'allow'` (auto-approve), `'deny'` (block), or `'ask'` (prompt for confirmation).
+
+## Handle advanced scenarios
+
+These patterns help you build more sophisticated hook systems for complex use cases.
+
+### Chaining multiple hooks
+
+Hooks execute in the order they appear in the array. Keep each hook focused on a single responsibility and chain multiple hooks for complex logic. This example runs all four hooks for every tool call (no matcher specified):
+
+
+```python Python
+options = ClaudeAgentOptions(
+    hooks={
+        'PreToolUse': [
+            HookMatcher(hooks=[rate_limiter]),        # First: check rate limits
+            HookMatcher(hooks=[authorization_check]), # Second: verify permissions
+            HookMatcher(hooks=[input_sanitizer]),     # Third: sanitize inputs
+            HookMatcher(hooks=[audit_logger])         # Last: log the action
+        ]
+    }
+)
+```
+
+```typescript TypeScript
+const options = {
+  hooks: {
+    'PreToolUse': [
+      { hooks: [rateLimiter] },        // First: check rate limits
+      { hooks: [authorizationCheck] }, // Second: verify permissions
+      { hooks: [inputSanitizer] },     // Third: sanitize inputs
+      { hooks: [auditLogger] }         // Last: log the action
+    ]
+  }
+};
+```
+
+
+### Tool-specific matchers with regex
+
+Use regex patterns to match multiple tools:
+
+
+```python Python
+options = ClaudeAgentOptions(
+    hooks={
+        'PreToolUse': [
+            # Match file modification tools
+            HookMatcher(matcher='Write|Edit|Delete', hooks=[file_security_hook]),
+
+            # Match all MCP tools
+            HookMatcher(matcher='^mcp__', hooks=[mcp_audit_hook]),
+
+            # Match everything (no matcher)
+            HookMatcher(hooks=[global_logger])
+        ]
+    }
+)
+```
+
+```typescript TypeScript
+const options = {
+  hooks: {
+    'PreToolUse': [
+      // Match file modification tools
+      { matcher: 'Write|Edit|Delete', hooks: [fileSecurityHook] },
+
+      // Match all MCP tools
+      { matcher: '^mcp__', hooks: [mcpAuditHook] },
+
+      // Match everything (no matcher)
+      { hooks: [globalLogger] }
+    ]
+  }
+};
+```
+
+
+> **Note:** Matchers only match **tool names**, not file paths or other arguments. To filter by file path, check `tool_input.file_path` inside your hook callback.
+
+### Tracking subagent activity
+
+Use `SubagentStop` hooks to monitor subagent completion. The `tool_use_id` helps correlate parent agent calls with their subagents:
+
+
+```python Python
+async def subagent_tracker(input_data, tool_use_id, context):
+    if input_data['hook_event_name'] == 'SubagentStop':
+        print(f"[SUBAGENT] Completed")
+        print(f"  Tool use ID: {tool_use_id}")
+        print(f"  Stop hook active: {input_data.get('stop_hook_active')}")
+    return {}
+
+options = ClaudeAgentOptions(
+    hooks={
+        'SubagentStop': [HookMatcher(hooks=[subagent_tracker])]
+    }
+)
+```
+
+```typescript TypeScript
+const subagentTracker: HookCallback = async (input, toolUseID, { signal }) => {
+  if (input.hook_event_name === 'SubagentStop') {
+    console.log(`[SUBAGENT] Completed`);
+    console.log(`  Tool use ID: ${toolUseID}`);
+    console.log(`  Stop hook active: ${input.stop_hook_active}`);
+  }
+  return {};
+};
+
+const options = {
+  hooks: {
+    SubagentStop: [{ hooks: [subagentTracker] }]
+  }
+};
+```
+
+
+### Async operations in hooks
+
+Hooks can perform async operations like HTTP requests. Handle errors gracefully by catching exceptions instead of throwing them. In TypeScript, pass the `signal` to `fetch()` so the request cancels if the hook times out:
+
+
+```python Python
+import aiohttp
+from datetime import datetime
+
+async def webhook_notifier(input_data, tool_use_id, context):
+    if input_data['hook_event_name'] != 'PostToolUse':
+        return {}
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            await session.post(
+                'https://api.example.com/webhook',
+                json={
+                    'tool': input_data['tool_name'],
+                    'timestamp': datetime.now().isoformat()
+                }
+            )
+    except Exception as e:
+        print(f'Webhook request failed: {e}')
+
+    return {}
+```
+
+```typescript TypeScript
+const webhookNotifier: HookCallback = async (input, toolUseID, { signal }) => {
+  if (input.hook_event_name !== 'PostToolUse') return {};
+
+  try {
+    // Pass signal for proper cancellation
+    await fetch('https://api.example.com/webhook', {
+      method: 'POST',
+      body: JSON.stringify({
+        tool: (input as PostToolUseHookInput).tool_name,
+        timestamp: new Date().toISOString()
+      }),
+      signal
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('Webhook request cancelled');
+    }
+  }
+
+  return {};
+};
+```
+
+
+### Sending notifications (TypeScript only)
+
+Use `Notification` hooks to receive status updates from the agent and forward them to external services like Slack or monitoring dashboards:
+
+```typescript TypeScript
+
+const notificationHandler: HookCallback = async (input, toolUseID, { signal }) => {
+  const notification = input as NotificationHookInput;
+
+  await fetch('https://hooks.slack.com/services/YOUR/WEBHOOK/URL', {
+    method: 'POST',
+    body: JSON.stringify({
+      text: `Agent status: ${notification.message}`
+    }),
+    signal
+  });
+
+  return {};
+};
+
+for await (const message of query({
+  prompt: "Analyze this codebase",
+  options: {
+    hooks: {
+      Notification: [{ hooks: [notificationHandler] }]
+    }
+  }
+})) {
+  console.log(message);
+}
+```
+
+## Fix common issues
+
+This section covers common issues and how to resolve them.
+
+### Hook not firing
+
+- Verify the hook event name is correct and case-sensitive (`PreToolUse`, not `preToolUse`)
+- Check that your matcher pattern matches the tool name exactly
+- Ensure the hook is under the correct event type in `options.hooks`
+- For `SubagentStop`, `Stop`, `SessionStart`, `SessionEnd`, and `Notification` hooks, matchers are ignored. These hooks fire for all events of that type.
+- Hooks may not fire when the agent hits the [`max_turns`](/docs/en/agent-sdk/python#configuration-options) limit because the session ends before hooks can execute
+
+### Matcher not filtering as expected
+
+Matchers only match **tool names**, not file paths or other arguments. To filter by file path, check `tool_input.file_path` inside your hook:
+
+```typescript
+const myHook: HookCallback = async (input, toolUseID, { signal }) => {
+  const preInput = input as PreToolUseHookInput;
+  const filePath = preInput.tool_input?.file_path as string;
+  if (!filePath?.endsWith('.md')) return {};  // Skip non-markdown files
+  // Process markdown files...
+};
+```
+
+### Hook timeout
+
+- Increase the `timeout` value in the `HookMatcher` configuration
+- Use the `AbortSignal` from the third callback argument to handle cancellation gracefully in TypeScript
+
+### Tool blocked unexpectedly
+
+- Check all `PreToolUse` hooks for `permissionDecision: 'deny'` returns
+- Add logging to your hooks to see what `permissionDecisionReason` they're returning
+- Verify matcher patterns aren't too broad (an empty matcher matches all tools)
+
+### Modified input not applied
+
+- Ensure `updatedInput` is inside `hookSpecificOutput`, not at the top level:
+
+  ```typescript
+  return {
+    hookSpecificOutput: {
+      hookEventName: input.hook_event_name,
+      permissionDecision: 'allow',
+      updatedInput: { command: 'new command' }
+    }
+  };
+  ```
+
+- You must also return `permissionDecision: 'allow'` for the input modification to take effect
+- Include `hookEventName` in `hookSpecificOutput` to identify which hook type the output is for
+
+### Session hooks not available
+
+`SessionStart`, `SessionEnd`, and `Notification` hooks are only available in the TypeScript SDK. The Python SDK does not support these events due to setup limitations.
+
+### Subagent permission prompts multiplying
+
+When spawning multiple subagents, each one may request permissions separately. Subagents do not automatically inherit parent agent permissions. To avoid repeated prompts, use `PreToolUse` hooks to auto-approve specific tools, or configure permission rules that apply to subagent sessions.
+
+### Recursive hook loops with subagents
+
+A `UserPromptSubmit` hook that spawns subagents can create infinite loops if those subagents trigger the same hook. To prevent this:
+
+- Check for a subagent indicator in the hook input before spawning
+- Use the `parent_tool_use_id` field to detect if you're already in a subagent context
+- Scope hooks to only run for the top-level agent session
+
+### systemMessage not appearing in output
+
+The `systemMessage` field adds context to the conversation that the model sees, but it may not appear in all SDK output modes. If you need to surface hook decisions to your application, log them separately or use a dedicated output channel.
+
+## Learn more
+
+- [Permissions](/docs/en/agent-sdk/permissions): control what your agent can do
+- [Custom Tools](/docs/en/agent-sdk/custom-tools): build tools to extend agent capabilities
+- [TypeScript SDK Reference](/docs/en/agent-sdk/typescript)
+- [Python SDK Reference](/docs/en/agent-sdk/python)

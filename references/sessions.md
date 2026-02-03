@@ -14,10 +14,8 @@ When you start a new query, the SDK automatically creates a session and returns 
 
 ### Getting the Session ID
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk"
 
 let sessionId: string | undefined
 
@@ -82,16 +80,13 @@ if session_id:
         print(message)
 ```
 
-</CodeGroup>
 
 ## Resuming Sessions
 
 The SDK supports resuming sessions from previous conversation states, enabling continuous development workflows. Use the `resume` option with a session ID to continue a previous conversation.
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk"
 
 // Resume a previous session using its ID
 const response = query({
@@ -126,9 +121,10 @@ async for message in query(
 # The conversation continues with full context from the previous session
 ```
 
-</CodeGroup>
 
 The SDK automatically handles loading the conversation history and context when you resume a session, allowing Claude to continue exactly where it left off.
+
+> **Tip:** To track and revert file changes across sessions, see [File Checkpointing](/docs/en/agent-sdk/file-checkpointing).
 
 ## Forking Sessions
 
@@ -153,10 +149,8 @@ Forking is useful when you want to:
 
 ### Example: Forking a Session
 
-<CodeGroup>
 
 ```typescript TypeScript
-import { query } from "@anthropic-ai/claude-agent-sdk"
 
 // First, capture the session ID
 let sessionId: string | undefined
@@ -240,5 +234,3 @@ async for message in query(
 ):
     print(message)
 ```
-
-</CodeGroup>
