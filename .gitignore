@@ -2,3 +2,5 @@
 .env.local
 .specstory
 .cursorindexingignore
+__pycache__/
+*.pyc
